@@ -227,6 +227,30 @@ def calibration_progress(con: sqlite3.Connection) -> dict:
     remaining = max(0, CALIB_REPEATS - complete)
     days_remaining = max(0, CALIB_MIN_DAYS - len(days))
 
+    # Explicit per-repeat slots, so the UI can SHOW that one repeat needs two
+    # photos instead of explaining it in prose. Sittings are not tracked
+    # directly, so for each day the i-th sitting is reconstructed as: main
+    # present if i < main_count, 2x present if i < 2x_count.
+    slots: list[dict] = []
+    for d in days:
+        v = by_day[d]
+        for i in range(max(v["main"], v["2x"])):
+            slots.append(
+                {
+                    "date": d,
+                    "main": i < v["main"],
+                    "2x": i < v["2x"],
+                    "complete": i < min(v["main"], v["2x"]),
+                }
+            )
+    repeats: list[dict] = []
+    for i in range(max(CALIB_REPEATS, len(slots))):
+        s = dict(slots[i]) if i < len(slots) else {
+            "date": None, "main": False, "2x": False, "complete": False
+        }
+        s["index"] = i + 1
+        repeats.append(s)
+
     if remaining == 0 and days_remaining == 0:
         status, msg = "complete", (
             f"All {CALIB_REPEATS} repeats captured across {len(days)} days. "
@@ -239,9 +263,11 @@ def calibration_progress(con: sqlite3.Connection) -> dict:
             "whether the pose is reproducible tomorrow."
         )
     else:
+        photos_left = max(0, CALIB_REPEATS * len(CALIB_LENSES) - len(rows))
         status, msg = "in_progress", (
-            f"{complete} of {CALIB_REPEATS} repeats done. {remaining} to go, "
-            f"across at least {max(1, days_remaining)} more day(s)."
+            f"{complete} of {CALIB_REPEATS} repeats done - that is {photos_left} more "
+            f"photos ({remaining} sittings, both lenses each), across at least "
+            f"{max(1, days_remaining)} more day(s)."
         )
 
     return {
@@ -249,12 +275,15 @@ def calibration_progress(con: sqlite3.Connection) -> dict:
         "target_repeats": CALIB_REPEATS,
         "min_days": CALIB_MIN_DAYS,
         "lenses": list(CALIB_LENSES),
+        "photos_per_repeat": len(CALIB_LENSES),
         "complete_repeats": complete,
         "remaining_repeats": remaining,
+        "repeats": repeats,
         "days_covered": days,
         "days_remaining": days_remaining,
         "total_images": len(rows),
         "expected_images": CALIB_REPEATS * len(CALIB_LENSES),
+        "photos_remaining": max(0, CALIB_REPEATS * len(CALIB_LENSES) - len(rows)),
         "by_day": by_day,
         "unpaired": missing,
         "status": status,
@@ -331,8 +360,10 @@ def capture_gate(con: sqlite3.Connection) -> dict:
         stage = "shooting"
         headline = "Calibration in progress — daily sessions not open yet"
         reason = (
-            f"{calib['complete_repeats']} of {calib['target_repeats']} repeats done"
-            f" across {len(calib['days_covered'])} of {calib['min_days']} days. "
+            f"{calib['complete_repeats']} of {calib['target_repeats']} repeats done "
+            f"({calib['total_images']} of {calib['expected_images']} photos - each "
+            f"sitting is shot on both lenses), across "
+            f"{len(calib['days_covered'])} of {calib['min_days']} days. "
             "Daily sessions open once the angle is locked."
         )
         next_step = calib["message"]

@@ -88,11 +88,19 @@
   .bar{height:9px; border-radius:5px; background:var(--panel2);
     overflow:hidden; border:1px solid var(--line); margin:9px 0 7px}
   .bar > i{display:block; height:100%; background:var(--ok); width:0}
-  .pips{display:flex; gap:5px; margin:9px 0}
-  .pips span{flex:1; height:26px; border-radius:6px; background:var(--panel2);
-    border:1px solid var(--line); display:flex; align-items:center;
-    justify-content:center; font-size:11px; color:var(--dim)}
-  .pips span.done{background:var(--ok); color:#062014; border-color:var(--ok); font-weight:700}
+  /* Repeat grid: one column per sitting, one row per lens. Makes the
+     "5 repeats but 10 photos" relationship visible instead of explained. */
+  .repgrid{display:flex; gap:6px; margin:10px 0 8px}
+  .rep{flex:1; border:1px solid var(--line); border-radius:8px;
+    overflow:hidden; background:var(--panel2)}
+  .rep .n{font-size:10px; text-align:center; padding:4px 0; color:var(--dim);
+    border-bottom:1px solid var(--line); letter-spacing:.04em}
+  .rep.done .n{background:var(--ok); color:#062014; font-weight:700}
+  .rep .slot{font-size:10.5px; text-align:center; padding:7px 0; color:var(--dim)}
+  .rep .slot + .slot{border-top:1px solid var(--line)}
+  .rep .slot.on{background:var(--ok); color:#062014; font-weight:700}
+  .eq{text-align:center; font-size:12px; color:var(--dim); margin-bottom:10px}
+  .eq b{color:var(--ink)}
   .note{background:#18222e; border:1px solid #2b3f55; border-radius:10px;
     padding:11px 12px; font-size:13px; line-height:1.5}
   .note ol{margin:7px 0 0; padding-left:19px} .note li{margin-bottom:5px}
@@ -289,13 +297,20 @@ function wireSeg(el, onPick){
 
 function renderPoses(){
   const list = MODE === 'calib' ? POSES.filter(p=>p.id==='left60') : POSES;
-  document.getElementById('poses').innerHTML = list.map(p=>`
+  const hint = MODE === 'calib'
+    ? `<div class="note" style="margin-bottom:10px">
+         <b>One lens at a time.</b> Set the lens above, attach that shot, upload.
+         Then switch the lens toggle and upload the other one — two uploads per
+         sitting, which is why 5 repeats means 10 photos.
+       </div>`
+    : '';
+  document.getElementById('poses').innerHTML = hint + list.map(p=>`
     <div class="pose">
       <div class="hdr"><span>${p.name}</span><span class="tag">${p.owns}</span></div>
       <input type="file" accept="image/*" id="f_${p.id}">
     </div>`).join('');
   document.getElementById('photoHdr').textContent =
-    MODE==='calib' ? 'Photo — left 60° only' : 'Photos — one per pose';
+    MODE==='calib' ? 'Photo — left 60°, current lens' : 'Photos — one per pose';
 }
 
 function renderCovs(){
@@ -451,31 +466,52 @@ async function loadCalib(){
   try{
     const c = await (await fetch('/calibration')).json();
     const pct = Math.min(100, 100*c.complete_repeats/c.target_repeats);
-    const pips = Array.from({length:c.target_repeats}, (_,i)=>
-      `<span class="${i < c.complete_repeats ? 'done':''}">${i+1}</span>`).join('');
+    const grid = c.repeats.map(r=>`
+      <div class="rep ${r.complete?'done':''}" title="${r.date||'not shot yet'}">
+        <div class="n">${r.index}</div>
+        <div class="slot ${r.main ? 'on':''}">main</div>
+        <div class="slot ${r['2x'] ? 'on':''}">2×</div>
+      </div>`).join('');
+
     el.innerHTML = `
       <div style="font-size:22px; font-weight:700">
         ${c.complete_repeats} <span class="muted" style="font-size:14px">
         / ${c.target_repeats} repeats</span>
       </div>
       <div class="bar"><i style="width:${pct}%"></i></div>
-      <div class="pips">${pips}</div>
-      <div class="kv"><span>Images stored</span>
+
+      <div class="muted" style="margin-top:11px">
+        Every sitting is photographed <b style="color:var(--ink)">twice</b> —
+        once per lens. Both squares have to fill for the repeat to count:
+      </div>
+      <div class="repgrid">${grid}</div>
+      <div class="eq">
+        <b>${c.target_repeats} repeats</b> × <b>${c.photos_per_repeat} lenses</b>
+        = <b>${c.expected_images} photos</b>
+      </div>
+
+      <div class="kv"><span>Repeats complete</span>
+        <b>${c.complete_repeats} / ${c.target_repeats}</b></div>
+      <div class="kv"><span>Photos stored</span>
         <b>${c.total_images} / ${c.expected_images}</b></div>
       <div class="kv"><span>Days covered</span>
         <b>${c.days_covered.length} / ${c.min_days}${
           c.days_covered.length ? ' — ' + c.days_covered.join(', ') : ''}</b></div>
       <div class="kv"><span>Still to shoot</span>
-        <b>${c.remaining_repeats} repeat(s)</b></div>
+        <b>${c.remaining_repeats} sitting(s) = ${c.photos_remaining} photo(s)</b></div>
       ${c.unpaired.length ? `<div class="res fail" style="margin-top:9px">
         <span class="v fail">lens pairs incomplete</span>
-        <ul>${c.unpaired.map(u=>`<li>${u}</li>`).join('')}</ul></div>` : ''}
+        <ul>${c.unpaired.map(u=>`<li>${u}</li>`).join('')}</ul>
+        <div class="muted" style="margin-top:6px">A sitting only counts once
+        both lenses are in. Shoot the missing one, or reshoot that sitting.</div>
+        </div>` : ''}
       <div class="note" style="margin-top:10px">${c.message}
         <div class="muted" style="margin-top:7px">
-          One repeat = one sitting, set up from scratch, shot on
-          <b>both</b> lenses. Five repeats total spread over at least three
-          days — not five per day. Same-day repeats do not test whether the
-          pose is reproducible tomorrow, which is the entire point.
+          A repeat is one sitting, <b>set up from scratch</b> — walk away, take
+          the headband off, rebuild the rig from SETUP_NUMBERS.md. Five sittings
+          total spread over at least three days, <b>not five per day</b>.
+          Same-day repeats do not test whether the pose is reproducible
+          tomorrow, which is the entire point.
         </div>
       </div>`;
   }catch(e){ el.innerHTML = '<span class="muted">could not reach server</span>'; }
