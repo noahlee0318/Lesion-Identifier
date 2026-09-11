@@ -163,5 +163,6 @@ Logs rotate at 5 MB, 5 files kept — a failure at 7am is still diagnosable at
 - **No port forwarding, no dynamic DNS, no tunnel.** This server must never
   be reachable from the internet. It has no authentication because it is not
   supposed to need any.
-- **No cloud sync of `data/`.** The data root lives at `C:\LesionAtlas\data`,
-  deliberately outside the OneDrive-synced repo folder.
+- **No cloud sync, anywhere.** The whole project lives under
+  `C:\LesionAtlas\` — repo and data as siblings on a plain local path, with
+  no OneDrive, Dropbox or iCloud involved.

@@ -1,10 +1,20 @@
 """Central paths and constants for the Lesion Atlas.
 
-DATA_ROOT lives OUTSIDE the repo on purpose. The repo sits in
-OneDrive\\Desktop, and CLAUDE.md's privacy rule is explicit: the photos never
-go to a cloud service. OneDrive has no reliable per-subfolder upload
-exclusion, so the only way to honour that is to keep data/ off the synced
-tree entirely. Override with the LESION_ATLAS_DATA environment variable.
+DATA_ROOT lives OUTSIDE the repo on purpose, as a sibling of it:
+
+    C:\\LesionAtlas\\
+        data\\           <- DATA_ROOT, never committed
+        lesion-atlas\\   <- this repo
+
+The whole project sits on a plain local path, deliberately off any
+cloud-synced folder. It previously lived under OneDrive\\Desktop, which would
+have auto-uploaded every photo; OneDrive has no reliable per-subfolder upload
+exclusion, so the fix was to move the project out rather than carve an
+exception.
+
+Keeping data outside the repo still matters now that nothing is synced: it
+means no git operation, no clone, and no accidental `git add -f` can reach an
+image. Override with the LESION_ATLAS_DATA environment variable.
 """
 
 from __future__ import annotations
@@ -12,7 +22,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-# --- repo-relative (these ARE synced, and that is fine - it is only code) ---
+# --- repo-relative ---------------------------------------------------------
 REPO = Path(__file__).resolve().parent.parent
 WEIGHTS_DIR = REPO / "models" / "weights"
 REPORTS_DIR = REPO / "reports"
@@ -22,7 +32,7 @@ FIXTURES_DIR = REPO / "tests" / "fixtures"
 
 FACE_LANDMARKER_TASK = WEIGHTS_DIR / "face_landmarker.task"
 
-# --- data root (deliberately NOT in OneDrive) -------------------------------
+# --- data root (outside the repo, never on a synced path) -------------------
 DATA_ROOT = Path(os.environ.get("LESION_ATLAS_DATA", r"C:\LesionAtlas\data"))
 RAW_DIR = DATA_ROOT / "raw"
 CALIB_DIR = RAW_DIR / "calib"

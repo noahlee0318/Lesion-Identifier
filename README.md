@@ -65,11 +65,20 @@ python scripts\verify_env.py    # blunt PASS/FAIL per requirement
 `verify_env.py` fails loudly if CUDA is missing rather than silently falling
 back to CPU.
 
-### Where the data lives
+### Where everything lives
 
-`C:\LesionAtlas\data` — **outside this repo, on purpose.** The repo folder is
-inside OneDrive, and photos of your face must not sync to a cloud service.
-Override with the `LESION_ATLAS_DATA` environment variable.
+The whole project sits on a plain local path, deliberately **off any
+cloud-synced folder**:
+
+```
+C:\LesionAtlas\
+    data\           <- DATA_ROOT, never committed, never synced
+    lesion-atlas\   <- this repo
+```
+
+Data stays outside the repo on purpose: no git operation, clone, or
+accidental `git add -f` can reach an image. Override the data location with
+the `LESION_ATLAS_DATA` environment variable.
 
 ```
 <DATA_ROOT>/

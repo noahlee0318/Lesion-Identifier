@@ -21,19 +21,27 @@ history takes sixty days, and no amount of effort in week 6 recovers a session
 you did not shoot in week 1. So the order is:
 
 - **Days 1–2** — rig up, shoot the five calibration repeats, run Face Mesh,
-  lock the angle. This part is fast; it is five photos and one script.
-- **Day 3 onward** — start shooting real three-pose sessions manually, with
-  your normal camera app, into `data/raw/YYYY-MM-DD/`. These are real data:
-  day 1 of your longitudinal series and the first of your training images.
+  lock the angle. The shooting is fast; the three days are the point.
+- **The day after the angle locks** — start shooting real three-pose sessions
+  manually, with your normal camera app, into `data/raw/YYYY-MM-DD/`. These
+  are real data: day 1 of your longitudinal series and the first of your
+  training images.
 - **Meanwhile** — the heavier registration spike and then the capture app get
   built while sessions accumulate in the background.
+
+> **Corrected 2026-09-11.** This section originally read "Days 1–2 … Day 3
+> onward", which contradicts the build plan's "five separate times across
+> three days" and left the start of daily capture ambiguous. **The gate is
+> the angle lock, not a calendar day.** Five repeats need at least three days
+> to spread across, so the lock lands on day 3 at the earliest and daily
+> capture starts the day after. `PHASE0_CHECKLIST.md` has the table.
 
 > ### The one ordering rule that matters
 >
 > **Do not start real sessions until the angle is locked.** If phase 0 pushes
 > you from 60° to 50°, every session shot at 60° beforehand is at the wrong
 > angle and cannot join the series. That is the only reason to wait — and it
-> is a two-day wait, not a two-week one. Everything else about the app is
+> is a three-day wait, not a two-week one. Everything else about the app is
 > automation of something you can already do by hand.
 
 Expect roughly 5–8 manually-shot sessions before the capture app takes over.

@@ -159,9 +159,48 @@ When the counter reads 5/5 across ≥3 days, tell me. I will run:
 **Do not start real 3-pose sessions until the angle is locked.**
 
 If phase 0 pushes you from 60° to 50°, every session shot at 60° beforehand
-is at the wrong angle and cannot join the series. That is a two-day wait, not
-a two-week one.
+is at the wrong angle and cannot join the series.
 
-The moment the angle is locked, daily capture starts and never stops —
-day 1 of the longitudinal series and the first of your training images.
-Calendar time is the one input you cannot buy back later.
+**So: do NOT start the daily 3-pose sessions during calibration.**
+
+### When exactly does daily capture start?
+
+The day after `facemesh_check` passes and you lock the angle. Not a fixed
+calendar day — whenever that lands, which is ~3–4 days from rig-up.
+
+```
+day 1   rig up · repeats 1–2 · both lenses
+day 2   repeats 3–4
+day 3   repeat 5  ->  facemesh_check runs  ->  ANGLE LOCKED
+day 4   first real 3-pose session. Never stops after this.
+```
+
+> **Note on a contradiction in the source docs.** The runbook narrative says
+> "days 1–2, shoot the five repeats… day 3 onward, start real sessions",
+> while the build plan says the five repeats spread across **three days**.
+> Both cannot be true. The resolving principle is the rule above: **the gate
+> is the angle lock, not the calendar.** Follow the table.
+
+### Why not start frontal-only shots now?
+
+The 60°-vs-50° decision does not touch the frontal pose, so in principle you
+could. Don't. The rig itself — lamp position, distance, fiducial mount — is
+still moving during calibration, and a session shot before the rig is locked
+carries different lighting and scale from everything after it. That is
+exactly the lighting-drift confounder this project exists to eliminate, and
+it is invisible until month three.
+
+Three days is cheap. A step change in your chart is not.
+
+### After the lock
+
+Daily capture starts and never stops — day 1 of the longitudinal series and
+the first of your training images. Shoot with the normal Camera app into a
+3-pose session and upload through the page in **Daily session** mode; the
+capture app in phase 1 is automation of something you can already do by hand.
+
+Expect roughly 5–8 manually-shot sessions before the app takes over.
+
+Calendar time is the one input you cannot buy back later. Sixty days of
+history takes sixty days, and no effort in week 6 recovers a session you did
+not shoot in week 1.
