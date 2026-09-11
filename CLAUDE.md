@@ -68,10 +68,18 @@ straight-ahead (nose ~0 deg, directly lateral ~90 deg).
 
 | Phase | Gate |
 |---|---|
-| P0 spike | Registration median err < 1.5mm, p95 < 3mm; angle locked |
+| P0 spike | Registration **pooled** median < 1.5mm, p95 < 3mm; angle locked |
 | P1 capture app | Session under 60s, 7 consecutive days running |
 | P2 labeling | Self-agreement > ~0.75 on 20 re-labeled images |
 | P4 detector | Precision > 0.8 at Recall > 0.7 on held-out **days** |
+
+The P0 registration gate reads residuals **pooled across all pairs**, never a
+median of per-pair medians — a per-pair median hides one catastrophic pair.
+Only methods that scored on every pair are eligible. The recommendation is the
+**simplest method that clears**, not the lowest number; pooled median breaks
+ties inside a complexity tier and nowhere else. A p95 is refused below 20
+pooled residuals, and a median that clears while p95 is unevaluable is
+**INCONCLUSIVE**, not GO. Full reasoning in `docs/DECISIONS.md`.
 
 ## Phase map
 
@@ -98,9 +106,16 @@ Daily capture is not a phase. It starts on day 3 of week 1 and never stops.
 - **Reject, do not average.** A bad registration is discarded, never blended
   into an atlas.
 - **Split by date, never randomly.** Consecutive days are near-duplicates;
-  a random split leaks badly and will produce fake metrics.
+  a random split leaks badly and will produce fake metrics. The default rule
+  is fixed trailing calendar windows (14d test, 14d val, 3d washout), so the
+  held-out set is the same size forever and always current. Split files are
+  **write-once**: `save_split` refuses to overwrite, because a metric with no
+  record of which days were held out is worthless.
 - **Control points are held-out ground truth.** Never fit a transform using
-  them. If you are tempted, stop and say so.
+  them — and never **select** with them either: picking which of six methods
+  to report, or which matcher to spline, using control-point error is
+  selection on the test set and biases the gate downward. If you are tempted,
+  stop and say so.
 - **Log covariates from day one.** They cannot be collected retroactively.
 - **Adherence is the #1 project risk.** Capture must stay under 60s. Every
   added pose is daily friction. Weigh features against that.
@@ -211,7 +226,8 @@ The photos are several hundred high-resolution images of Noah's face.
 ## Open questions
 
 - Face Mesh reliability at 60 deg (P0 decides; fallback 50 deg).
-- Which registration method wins (P0 bake-off).
+- Which registration method wins (P0 bake-off) — decided by *simplest that
+  clears the pooled gate*, not by lowest number.
 - Main lens @ 30cm vs 2x @ 55cm (P0 lens test).
 - Does iOS Safari alter uploaded files (P0 fidelity check).
 - px/mm at video-stream resolution — decides whether P1 keeps the ghost
