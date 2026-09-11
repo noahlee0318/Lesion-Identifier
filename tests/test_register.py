@@ -387,6 +387,141 @@ def test_report_states_the_selection_bias_on_a_go():
 
 
 # --------------------------------------------------------------------------
+# an unscoreable pair is a data problem, not a NO-GO
+# --------------------------------------------------------------------------
+
+def _unscoreable(target: str, names=(R.M1, R.M5), n_cp: int = 2,
+                 note: str = "only 2 shared control points"):
+    """A pair where evaluate() rejected every method for the same reason.
+
+    `names` must match the ladder the live pairs ran, since every pair in a
+    real run goes through the same one. A method that appears ONLY here really
+    did score nothing and is ineligible on its own merits.
+    """
+    rows = []
+    for name in names:
+        r = R.MethodResult(name, "homography")
+        r.note = note
+        rows.append(r)
+    pair = _pair(target, rows)
+    pair["n_control_points"] = n_cp
+    return pair
+
+
+def test_a_pair_no_method_scored_is_partitioned_out():
+    pairs = [
+        _pair("a.jpg", [_clearing(R.M1, 0.8)]),
+        _pair("b.jpg", [_clearing(R.M1, 0.8)]),
+        _unscoreable("left60_003.jpg", names=(R.M1,)),
+    ]
+    live, dead = R.partition_pairs(pairs)
+    assert [Path(p["target"]).name for p in live] == ["a.jpg", "b.jpg"]
+    assert len(dead) == 1
+    assert dead[0].target == "left60_003.jpg"
+    assert dead[0].n_control_points == 2
+    assert "3" in dead[0].why, "the reason should say what the minimum is"
+
+
+def test_one_under_marked_image_does_not_force_a_false_no_go():
+    """The bug this guards: every method missing one pair makes every method
+    incomplete, so nothing is eligible, so the headline reads NO-GO - a
+    registration verdict announced because one image was badly annotated."""
+    pairs = [
+        _pair("a.jpg", [_clearing(R.M1, 0.8), _clearing(R.M5, 0.7)]),
+        _pair("b.jpg", [_clearing(R.M1, 0.8), _clearing(R.M5, 0.7)]),
+        _unscoreable("left60_003.jpg"),
+    ]
+    v = R.decide_gate(R.pool_by_method(pairs))
+    assert v.status == "GO", f"false {v.status} caused by one unscoreable pair"
+    assert v.recommended.name == R.M1
+    assert v.ineligible == [], (
+        "methods were marked ineligible for missing a pair that no method could "
+        "score - that pair carries no information about any method"
+    )
+
+
+def test_the_denominator_counts_only_scoreable_pairs():
+    pairs = [
+        _pair("a.jpg", [_clearing(R.M1, 0.8)]),
+        _pair("b.jpg", [_clearing(R.M1, 0.8)]),
+        _unscoreable("c.jpg", names=(R.M1,)),
+        _unscoreable("d.jpg", names=(R.M1,)),
+    ]
+    pooled = {m.name: m for m in R.pool_by_method(pairs)}[R.M1]
+    assert (pooled.pairs_scored, pooled.pairs_total) == (2, 2)
+    assert pooled.complete
+
+
+def test_dropping_dead_pairs_does_not_excuse_a_method_that_really_failed():
+    """The eligibility rule must still bite where it was meant to.
+
+    `hard.jpg` IS scoreable - another method managed it - so the method that
+    missed it stays ineligible.
+    """
+    failed = R.MethodResult(R.M5, "tps")
+    failed.note = "matcher failed"
+    pairs = [
+        _pair("a.jpg", [_clearing(R.M1, 1.2), _clearing(R.M5, 0.2)]),
+        _pair("hard.jpg", [_clearing(R.M1, 1.2), failed]),
+        _unscoreable("under_marked.jpg", names=(R.M1, R.M5)),
+    ]
+    v = R.decide_gate(R.pool_by_method(pairs))
+    assert v.recommended.name == R.M1
+    assert [m.name for m in v.ineligible] == [R.M5], (
+        "a method that failed on a pair others handled must stay ineligible"
+    )
+
+
+def test_the_excluded_pair_is_named_loudly_above_the_verdict():
+    pairs = [
+        _pair("a.jpg", [_clearing(R.M1, 0.8)]),
+        _pair("b.jpg", [_clearing(R.M1, 0.8)]),
+        _unscoreable("left60_003.jpg", names=(R.M1,)),
+    ]
+    out = Path(config.REPO) / "reports" / "_test_register_dead.md"
+    R.write_report(pairs, out, [])
+    body = out.read_text(encoding="utf-8")
+    out.unlink()
+
+    head, _, tail = body.partition("**GO.**")
+    assert "left60_003.jpg" in head, "the excluded pair is not named above the verdict"
+    assert "DATA problem" in head, "the banner does not say this is a data problem"
+    assert "control point" in head
+    # And the pair is still visible in the breakdown, marked.
+    assert "EXCLUDED FROM THE GATE" in tail
+
+
+def test_banner_is_absent_when_every_pair_scored():
+    pairs = [_pair("a.jpg", [_clearing(R.M1, 0.8)])]
+    out = Path(config.REPO) / "reports" / "_test_register_nodead.md"
+    R.write_report(pairs, out, [])
+    body = out.read_text(encoding="utf-8")
+    out.unlink()
+    assert "DATA problem" not in body
+    assert "EXCLUDED FROM THE GATE" not in body
+
+
+def test_every_pair_unscoreable_says_data_problem_not_registration_failure():
+    pairs = [_unscoreable("a.jpg", names=(R.M1,)), _unscoreable("b.jpg", names=(R.M1,))]
+    out = Path(config.REPO) / "reports" / "_test_register_alldead.md"
+    R.write_report(pairs, out, [])
+    body = out.read_text(encoding="utf-8")
+    out.unlink()
+    assert "nothing scored" in body
+    assert "data problem" in body.lower(), (
+        "an all-unscoreable run reads as a registration failure"
+    )
+    assert "SHARED" in body, "the message should name the actual requirement"
+
+
+def test_pooling_is_unchanged_when_nothing_is_dead():
+    """Regression: the partition must not alter a healthy run."""
+    pairs = [_pair(f"t{i}.jpg", [_result(R.M1, np.linspace(0.1, 1.0, 10))]) for i in range(5)]
+    pooled = R.pool_by_method(pairs)[0]
+    assert (pooled.n, pooled.pairs_scored, pooled.pairs_total) == (50, 5, 5)
+
+
+# --------------------------------------------------------------------------
 # method 5 picks its base without touching the held-out truth
 # --------------------------------------------------------------------------
 

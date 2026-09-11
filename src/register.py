@@ -1065,6 +1065,68 @@ def plot_residuals(pair: dict, out_dir: Path) -> Path | None:
 # --------------------------------------------------------------------------
 
 @dataclass
+class DeadPair:
+    """A pair that NO method could score. A data problem, not a method result."""
+
+    target: str
+    n_control_points: int
+    why: str
+
+    def summary(self) -> dict:
+        return {"target": self.target, "n_control_points": self.n_control_points,
+                "why": self.why}
+
+
+def _why_dead(pair: dict) -> str:
+    """Best available explanation for why nothing scored this pair."""
+    n = pair["n_control_points"]
+    if n < 3:
+        return (f"only {n} control point{'' if n == 1 else 's'} shared with the "
+                f"reference; scoring needs at least 3")
+    notes: list[str] = []
+    for r in pair["results"]:
+        if r.note and r.note not in notes:
+            notes.append(r.note)
+    if notes:
+        return "; ".join(notes[:2]) + (" (+more)" if len(notes) > 2 else "")
+    return "no method produced an evaluable transform"
+
+
+def partition_pairs(pairs: list[dict]) -> tuple[list[dict], list[DeadPair]]:
+    """Split pairs into those at least one method scored, and those none did.
+
+    A pair that NO method could score carries no information about any method.
+    It usually means the control points were under-marked - fewer than three
+    ids shared with the reference - which is an annotation problem, not a
+    registration result.
+
+    It has to be dropped before eligibility is judged, or it poisons the whole
+    verdict: every method would be missing that pair, so every method would be
+    incomplete, so nothing would be gate-eligible, and the headline would read
+    NO-GO. That is a false NO-GO announcing a registration failure when one
+    image was badly annotated - and the headline is the line that gets read at
+    11pm on day 4, whatever the breakdown table says further down.
+
+    Dropping is safe in the direction that matters: it can only ever ADD
+    eligible methods, never excuse a method that genuinely failed on a pair
+    other methods handled. A pair scored by SOME methods stays in the pool,
+    and the methods that missed it stay ineligible.
+    """
+    live: list[dict] = []
+    dead: list[DeadPair] = []
+    for pair in pairs:
+        if any(r.ok and r.n_residuals for r in pair["results"]):
+            live.append(pair)
+        else:
+            dead.append(DeadPair(
+                target=Path(pair["target"]).name,
+                n_control_points=int(pair["n_control_points"]),
+                why=_why_dead(pair),
+            ))
+    return live, dead
+
+
+@dataclass
 class Pooled:
     """One method's residuals from every pair, in one vector.
 
@@ -1135,7 +1197,13 @@ def fmt_pct(value: float | None, n: int, q: float, unit: str = "") -> str:
 
 
 def pool_by_method(pairs: list[dict]) -> list[Pooled]:
-    """Pool every residual per method, across every pair. Ladder order."""
+    """Pool every residual per method, across every SCOREABLE pair. Ladder order.
+
+    `pairs_total` counts only pairs that at least one method scored, so a
+    single unscoreable pair cannot make every method incomplete at once. See
+    partition_pairs.
+    """
+    live, _dead = partition_pairs(pairs)
     names: list[str] = []
     for p in pairs:
         for r in p["results"]:
@@ -1153,7 +1221,7 @@ def pool_by_method(pairs: list[dict]) -> list[Pooled]:
             tier=method_tier(name),
             n=int(sum(r.n_residuals for r in ok)),
             pairs_scored=len(ok),
-            pairs_total=len(pairs),
+            pairs_total=len(live),
         )
         pooled.notes = [r.note for r in rows if r.note]
         if not ok:
@@ -1253,23 +1321,47 @@ def write_report(pairs: list[dict], out: Path, plots: list[Path]) -> None:
     L: list[str] = ["# Registration bake-off - phase 0 question (b)\n"]
 
     pooled = pool_by_method(pairs)
+    live, dead = partition_pairs(pairs)
     verdict = decide_gate(pooled)
-    n_pairs = len(pairs)
+    n_pairs = len(live)
 
     L.append("## VERDICT\n")
+
+    # Loud, and above the verdict, because an unscoreable pair is an
+    # annotation problem and would otherwise be read as a registration one.
+    if dead:
+        one = len(dead) == 1
+        L.append(
+            f"> **{len(dead)} pair{'' if one else 's'} could not be scored by ANY "
+            f"method and {'is' if one else 'are'} excluded from the gate.** This is "
+            f"a DATA problem, not a registration result - nothing below is a verdict "
+            f"on {'that image' if one else 'those images'}.\n>"
+        )
+        for dp in dead:
+            L.append(f"> - `{dp.target}` - {dp.why}")
+        L.append(
+            f">\n> Fix the annotation and re-run before reading anything into the "
+            f"gate: mark more control points on "
+            f"{'that image' if one else 'those images'} (and on the reference) with "
+            f"`python -m src.controlpoints`. The gate below is judged against the "
+            f"remaining {n_pairs} pair{'' if n_pairs == 1 else 's'}.\n"
+        )
+
     L.append(
         f"- **Gate:** pooled median < {config.GATE_MEDIAN_MM} mm and pooled "
         f"p95 < {config.GATE_P95_MM} mm"
     )
     L.append(
-        f"- **Statistic:** residuals from all {n_pairs} pair(s) pooled per method, "
-        "not a median of per-pair medians. A per-pair median hides a single "
+        f"- **Statistic:** residuals from all {n_pairs} scoreable pair(s) pooled per "
+        "method, not a median of per-pair medians. A per-pair median hides a single "
         "catastrophic pair, which is the failure this gate exists to catch."
     )
 
     if not any(m.n for m in pooled):
         L.append("\n**NO-GO - nothing scored.** No method produced a transform that could be "
-                 "evaluated. Check that control points exist for both images and that the "
+                 "evaluated on any pair. This is almost certainly a data problem rather than "
+                 "a registration one: check that control points exist for both images, that "
+                 "at least three ids are SHARED between reference and target, and that the "
                  "fiducial is detected in the reference.\n")
     else:
         m = verdict.recommended
@@ -1399,10 +1491,16 @@ def write_report(pairs: list[dict], out: Path, plots: list[Path]) -> None:
     L.append("With ~10 control points per pair, a per-pair p90 or p95 is the top one or two "
              "residuals wearing a percentile's name. These columns are here to locate a bad "
              "pair, not to be compared against a threshold.\n")
+    excluded = {dp.target for dp in dead}
     for p in pairs:
-        L.append(f"\n### {Path(p['target']).name} -> {Path(p['reference']).name}\n")
+        name = Path(p["target"]).name
+        flag = "  - **EXCLUDED FROM THE GATE**" if name in excluded else ""
+        L.append(f"\n### {name} -> {Path(p['reference']).name}{flag}\n")
         L.append(f"- scale: **{p['px_per_mm']:.2f} px/mm** (reference image ArUco)")
         L.append(f"- control points: **{p['n_control_points']}** shared, held out")
+        if name in excluded:
+            L.append("- no method could be scored here, so this pair contributes "
+                     "nothing to the pooled numbers and nothing to eligibility")
         L.append("")
         L.append("| method | n | median mm | p90 mm | p95 mm | max mm | matches | inliers | radial r | p | note |")
         L.append("|---|---|---|---|---|---|---|---|---|---|---|")
@@ -1635,6 +1733,15 @@ def main(argv: list[str] | None = None) -> int:
         return 3
 
     write_report(pairs, a.report, plots)
+
+    live, dead = partition_pairs(pairs)
+    if dead:
+        print("\nPAIRS SCORED BY NO METHOD - excluded from the gate (DATA problem):")
+        for dp in dead:
+            print(f"  {dp.target}: {dp.why}")
+        print(f"  the gate below is judged against the remaining {len(live)} "
+              f"pair{'' if len(live) == 1 else 's'}")
+
     print("\nPOOLED (what the gate reads):")
     pooled = pool_by_method(pairs)
     for m in pooled:
@@ -1665,6 +1772,7 @@ def main(argv: list[str] | None = None) -> int:
                             "the honest read on new data is somewhat worse",
                 },
                 "pooled": [m.summary() for m in pooled],
+                "excluded_pairs": [dp.summary() for dp in dead],
                 "skipped_pairs": [{"target": str(t), "why": why} for t, why in skipped],
                 "pairs": [
                     {

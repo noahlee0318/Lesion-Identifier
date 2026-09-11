@@ -248,3 +248,28 @@ over a finished capture period. Under the window rule a split needs about
 Accepted consequence: for the first weeks train is smaller than test.
 `format_report` prints a note saying that is the rule reporting honestly, not
 a bug.
+
+## 2026-09-11 — A pair no method could score is dropped before eligibility is judged
+
+Follow-up to the pooled-gate entry above: the completeness rule it introduced
+had a failure mode of its own.
+
+If a single target cannot be scored by ANY method — usually because fewer than
+three control-point ids are shared with the reference — then every method is
+missing that pair, so every method is incomplete, so nothing is gate-eligible,
+and the verdict reads **NO-GO**. That is a false NO-GO: a registration failure
+announced because one image was under-marked. The breakdown table carried the
+evidence (`pairs_scored/pairs_total`), but the verdict line is what gets read
+at 11pm on day 4, and it would have been wrong.
+
+`partition_pairs()` now splits pairs into scoreable and not, before anything
+is decided. Unscoreable pairs are excluded from the pool, `pairs_total` counts
+only the scoreable ones, and the report prints a block quote ABOVE the verdict
+naming each excluded pair and why — "`left60_003.jpg` — only 2 control points
+shared with the reference; scoring needs at least 3" — and saying plainly that
+this is a data problem, not a registration result.
+
+The asymmetry is deliberate and is what makes this safe: dropping such a pair
+can only ever ADD eligible methods, never excuse one that genuinely failed. A
+pair scored by SOME methods stays in the pool, and the methods that missed it
+stay ineligible. Both directions are tested.
