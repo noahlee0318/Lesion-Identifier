@@ -130,6 +130,37 @@ def calibration():
     return db.calibration_progress(con())
 
 
+@app.get("/gate")
+def gate():
+    """Which capture modes are open, and why. Drives the UI lock."""
+    return db.capture_gate(con())
+
+
+@app.post("/lock-angle")
+def lock_angle(angle_deg: float = Form(...)):
+    """Record that facemesh_check passed and the yaw angle is settled.
+
+    This is the event that opens daily capture. It is a human decision made
+    after reading reports/facemesh_check.md - the server cannot infer it from
+    the uploads alone, because "the images exist" is not "the angle works".
+    """
+    if angle_deg not in (50.0, 60.0):
+        raise HTTPException(400, "angle_deg must be 50 or 60")
+    with db.tx(con()) as c:
+        db.lock_angle(c, angle_deg)
+    log.info("ANGLE LOCKED at %.0f deg - daily capture is now open", angle_deg)
+    return db.capture_gate(con())
+
+
+@app.post("/unlock-angle")
+def unlock_angle():
+    """Undo a premature lock. Touches no stored image."""
+    with db.tx(con()) as c:
+        db.unlock_angle(c)
+    log.info("angle lock reverted - daily sessions closed again")
+    return db.capture_gate(con())
+
+
 @app.get("/recent")
 def recent():
     return {"sessions": db.recent_sessions(con()), "regimen": db.recent_regimen(con())}
@@ -147,6 +178,7 @@ async def capture(
     kind: str = Form("session"),
     covariates: str = Form("{}"),
     client: str = Form("{}"),
+    override_gate: bool = Form(False),
 ):
     if pose not in config.POSES:
         raise HTTPException(400, f"pose must be one of {config.POSES}")
@@ -158,6 +190,23 @@ async def capture(
         datetime.strptime(session_date, "%Y-%m-%d")
     except ValueError:
         raise HTTPException(400, "session_date must be YYYY-MM-DD")
+
+    # Guardrail, not a wall. Sessions shot before the angle is locked cannot
+    # join the series if phase 0 drops the yaw to 50 deg, so refuse by
+    # default - but always with a working way through, because a blocked
+    # upload of a real session is a permanently lost day and adherence is the
+    # #1 risk on this project.
+    if kind == "session" and not override_gate:
+        g = db.capture_gate(con())
+        if not g["session_open"]:
+            log.info("blocked session upload: %s", g["headline"])
+            raise HTTPException(
+                409,
+                f"{g['headline']}. {g['reason']} "
+                "If you know what you are doing, resend with override_gate=true "
+                "(the upload page has a button for this), or lock the angle at "
+                "POST /lock-angle.",
+            )
 
     data = await file.read()
     if not data:
@@ -258,7 +307,7 @@ async def capture(
         "stored_path": str(dest), "sha256": sha, "bytes": len(data),
         "width_px": q.width_px, "height_px": q.height_px,
         "qa": q.to_dict(),
-        "calibration": db.calibration_progress(con()) if kind == "calib" else None,
+        "gate": db.capture_gate(con()),
     }
 
 

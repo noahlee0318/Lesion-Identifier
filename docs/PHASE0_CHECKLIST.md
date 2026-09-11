@@ -144,9 +144,11 @@ Suggested spread:
 
 ## 6 · Hand off
 
-When the counter reads 5/5 across ≥3 days, tell me. I will run:
+When the counter reads 5/5 across ≥3 days, the page moves to **step 2** and
+tells you to run `facemesh_check`. Tell me and I will run:
 
-1. `facemesh_check.py` → **the angle verdict**: hold at 60° or drop to 50°
+1. `facemesh_check.py` → **the angle verdict**: hold at 60° or drop to 50°.
+   Then you tap the matching **Lock at __°** button, which opens daily capture.
 2. `verify_upload_fidelity.py` + the `/probe` numbers → phase 1 architecture
 3. then you hand-mark control points and I run the registration bake-off
    → **GO/NO-GO** against median < 1.5 mm, p95 < 3 mm
@@ -167,6 +169,15 @@ is at the wrong angle and cannot join the series.
 
 The day after `facemesh_check` passes and you lock the angle. Not a fixed
 calendar day — whenever that lands, which is ~3–4 days from rig-up.
+
+**The upload page enforces this.** The Daily session tab stays greyed out
+until you tap **Lock at 60°** (or 50°), which only appears once all 5 repeats
+are in across 3+ days. The banner at the top of the page always says which of
+the three steps you are on and what to do next.
+
+It is a guardrail, not a wall — there is an "upload a session anyway"
+override behind a confirmation, because a blocked upload of a real session
+would be a permanently lost day. Use it only if the counter is wrong.
 
 ```
 day 1   rig up · repeats 1–2 · both lenses

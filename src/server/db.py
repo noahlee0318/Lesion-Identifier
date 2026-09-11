@@ -76,6 +76,15 @@ CREATE TABLE IF NOT EXISTS regimen_events (
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_regimen_date ON regimen_events(event_date);
+
+-- Small key/value store for project state that has to outlive a page reload
+-- and be the same on every device. Currently: whether the yaw angle has been
+-- locked, which is the real gate on starting daily capture.
+CREATE TABLE IF NOT EXISTS project_state (
+    key        TEXT PRIMARY KEY,
+    value      TEXT,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
@@ -250,6 +259,95 @@ def calibration_progress(con: sqlite3.Connection) -> dict:
         "unpaired": missing,
         "status": status,
         "message": msg,
+    }
+
+
+# --------------------------------------------------------------------------
+# project state / capture gate
+# --------------------------------------------------------------------------
+
+def get_state(con: sqlite3.Connection, key: str, default: str | None = None) -> str | None:
+    row = con.execute("SELECT value FROM project_state WHERE key=?", (key,)).fetchone()
+    return row["value"] if row else default
+
+
+def set_state(con: sqlite3.Connection, key: str, value: str | None) -> None:
+    con.execute(
+        "INSERT INTO project_state (key, value, updated_at) VALUES (?,?,datetime('now')) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+        (key, value),
+    )
+
+
+def lock_angle(con: sqlite3.Connection, angle_deg: float) -> None:
+    set_state(con, "angle_locked", "1")
+    set_state(con, "locked_angle_deg", str(angle_deg))
+    set_state(con, "angle_locked_at", __import__("datetime").date.today().isoformat())
+
+
+def unlock_angle(con: sqlite3.Connection) -> None:
+    set_state(con, "angle_locked", "0")
+
+
+def capture_gate(con: sqlite3.Connection) -> dict:
+    """Which capture modes are open right now, and why.
+
+    Three stages, because uploading the calibration images is NOT the same
+    event as locking the angle:
+
+      shooting   calibration set incomplete -> only calibration uploads
+      analysis   set complete, angle not locked -> still only calibration,
+                 because facemesh_check has not confirmed 60 deg holds
+      open       angle locked -> daily sessions, forever
+
+    The daily-session lock is a guardrail against shooting three days of
+    sessions at an angle that phase 0 is about to invalidate. It is NOT a
+    hard security boundary: adherence is the #1 project risk, so every path
+    here has a deliberate override rather than a dead end.
+    """
+    calib = calibration_progress(con)
+    locked = get_state(con, "angle_locked", "0") == "1"
+    angle = get_state(con, "locked_angle_deg")
+    locked_at = get_state(con, "angle_locked_at")
+
+    if locked:
+        stage = "open"
+        headline = f"Daily capture is open — angle locked at {angle}°"
+        reason = (
+            f"Angle locked at {angle}° on {locked_at}. Shoot all three poses every "
+            "day from here on. This never stops."
+        )
+        next_step = None
+    elif calib["status"] == "complete":
+        stage = "analysis"
+        headline = "Calibration shot — angle not locked yet"
+        reason = (
+            "All 5 repeats are in across 3+ days. Daily sessions stay closed until "
+            "facemesh_check confirms the angle, because if it comes back 50° every "
+            "session shot at 60° now cannot join the series."
+        )
+        next_step = "run facemesh_check, then lock the angle below"
+    else:
+        stage = "shooting"
+        headline = "Calibration in progress — daily sessions not open yet"
+        reason = (
+            f"{calib['complete_repeats']} of {calib['target_repeats']} repeats done"
+            f" across {len(calib['days_covered'])} of {calib['min_days']} days. "
+            "Daily sessions open once the angle is locked."
+        )
+        next_step = calib["message"]
+
+    return {
+        "stage": stage,
+        "session_open": locked,
+        "calib_open": True,           # calibration uploads are never blocked
+        "angle_locked": locked,
+        "locked_angle_deg": float(angle) if angle else None,
+        "angle_locked_at": locked_at,
+        "headline": headline,
+        "reason": reason,
+        "next_step": next_step,
+        "calibration": calib,
     }
 
 

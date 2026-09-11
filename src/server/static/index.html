@@ -41,6 +41,29 @@
     background:var(--panel); color:var(--dim); border:1px solid var(--line); cursor:pointer}
   .modes button[aria-pressed=true]{background:var(--panel2); color:var(--ink);
     border-color:var(--accent); font-weight:600}
+  /* A locked tab stays visible and tappable - tapping explains why, rather
+     than doing nothing, which reads as a broken button. */
+  .modes button.locked{opacity:.45; border-style:dashed}
+  .modes button.locked[aria-pressed=true]{opacity:1; border-color:var(--warn)}
+
+  /* Gate banner */
+  .gate{border-left:3px solid var(--warn)}
+  .gate.open{border-left-color:var(--ok)}
+  .gate .stage{font-size:11px; text-transform:uppercase; letter-spacing:.09em;
+    color:var(--warn); font-weight:700; margin-bottom:5px}
+  .gate.open .stage{color:var(--ok)}
+  .gate .head{font-size:15px; font-weight:700; margin-bottom:6px}
+  .gate .why{font-size:13px; color:var(--dim); line-height:1.5}
+  .gate .next{margin-top:9px; padding:9px 10px; border-radius:8px;
+    background:var(--panel2); font-size:13px}
+  .lockbtns{display:flex; gap:7px; margin-top:11px}
+  .lockbtns button{flex:1; padding:13px 6px; font-size:14px; font-weight:700;
+    font-family:inherit; border-radius:10px; background:var(--ok); color:#062014;
+    border:0}
+  .linkbtn{background:none; border:0; color:var(--dim); font-size:12.5px;
+    font-family:inherit; text-decoration:underline; padding:9px 0; cursor:pointer}
+  /* Everything the gate disables */
+  .disabled{opacity:.32; pointer-events:none; filter:grayscale(.85)}
   .pose{border:1px solid var(--line); border-radius:10px; padding:11px;
     margin-bottom:10px; background:var(--panel2)}
   .pose .hdr{display:flex; justify-content:space-between; align-items:center;
@@ -100,6 +123,11 @@
     <button id="mCalib"   aria-pressed="false" onclick="setMode('calib')">Phase 0 calibration</button>
   </div>
 
+  <!-- ============ capture gate ============ -->
+  <section id="gatePanel" class="gate">
+    <div id="gateBody"><span class="muted">checking…</span></div>
+  </section>
+
   <!-- ============ how to upload ============ -->
   <section>
     <h2>How to upload from your phone</h2>
@@ -146,7 +174,7 @@
   </section>
 
   <!-- ============ session meta ============ -->
-  <section>
+  <section id="metaPanel">
     <h2>Session</h2>
     <label class="row">
       <span class="lab">Date</span>
@@ -166,7 +194,7 @@
   </section>
 
   <!-- ============ photos ============ -->
-  <section>
+  <section id="photoSection">
     <h2 id="photoHdr">Photos</h2>
     <div id="poses"></div>
   </section>
@@ -239,6 +267,8 @@ const COVS = [
 ];
 
 let MODE = 'session';
+let GATE = null;            // /gate response; null until first fetch
+let OVERRIDE = false;       // deliberate "upload a session anyway"
 const state = {lens:'main', change:'added', cov:{}};
 
 function todayISO(){
@@ -279,17 +309,141 @@ function renderCovs(){
   COVS.forEach(c=>wireSeg(document.getElementById('seg_'+c.id), v=>{state.cov[c.id]=v;}));
 }
 
+function sessionLocked(){
+  // Unknown gate (server unreachable) is treated as OPEN, not locked. Failing
+  // closed here would block a real session on a network blip, and a lost day
+  // is unrecoverable while a stray early upload is merely deletable.
+  return GATE ? (!GATE.session_open && !OVERRIDE) : false;
+}
+
 function setMode(m){
   MODE = m;
   document.getElementById('mSession').setAttribute('aria-pressed', m==='session');
   document.getElementById('mCalib').setAttribute('aria-pressed',  m==='calib');
   document.getElementById('calibPanel').style.display = m==='calib' ? '' : 'none';
-  document.getElementById('covPanel').style.display   = m==='calib' ? 'none' : '';
   document.getElementById('sub').textContent = m==='calib'
     ? 'phase 0 calibration · left 60° only · both lenses'
     : 'phase 0 ingest · plain HTTP · LAN only';
   renderPoses();
+  applyGate();
   if (m==='calib') loadCalib();
+}
+
+/* Grey out everything that belongs to the daily session while it is locked. */
+function applyGate(){
+  const locked = sessionLocked();
+  const inSession = MODE === 'session';
+  const off = locked && inSession;
+
+  document.getElementById('mSession').classList.toggle('locked', locked);
+
+  for (const id of ['photoSection','covPanel','metaPanel']){
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('disabled', off);
+  }
+  document.getElementById('covPanel').style.display = MODE==='calib' ? 'none' : '';
+
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = off;
+  btn.textContent = off ? 'Daily sessions locked' : 'Upload';
+  renderGate();
+}
+
+function renderGate(){
+  const el = document.getElementById('gateBody');
+  const panel = document.getElementById('gatePanel');
+  if (!GATE){ el.innerHTML = '<span class="muted">checking…</span>'; return; }
+
+  const open = GATE.session_open;
+  panel.classList.toggle('open', open);
+
+  const stageLabel = {
+    shooting: 'step 1 of 3 · shooting calibration',
+    analysis: 'step 2 of 3 · angle not locked',
+    open:     'step 3 of 3 · daily capture open',
+  }[GATE.stage] || GATE.stage;
+
+  let html = `<div class="stage">${stageLabel}</div>
+              <div class="head">${GATE.headline}</div>
+              <div class="why">${GATE.reason}</div>`;
+
+  if (GATE.next_step)
+    html += `<div class="next"><b>Next:</b> ${GATE.next_step}</div>`;
+
+  if (GATE.stage === 'analysis'){
+    html += `<div class="next" style="margin-top:9px">
+      Run this on the laptop, read the verdict at the top, then tap the angle
+      it tells you:
+      <div style="font-family:ui-monospace,Menlo,Consolas,monospace;
+                  font-size:11.5px; margin-top:6px; color:var(--accent)">
+        python -m src.facemesh_check</div>
+    </div>
+    <div class="lockbtns">
+      <button onclick="lockAngle(60)">Lock at 60°</button>
+      <button onclick="lockAngle(50)" style="background:var(--warn)">Lock at 50°</button>
+    </div>`;
+  }
+
+  if (GATE.stage === 'open'){
+    html += `<button class="linkbtn" onclick="unlockAngle()">
+               angle locked at ${GATE.locked_angle_deg}° on ${GATE.angle_locked_at} — undo
+             </button>`;
+  } else if (MODE === 'session'){
+    html += OVERRIDE
+      ? `<div class="next" style="border:1px solid var(--warn); margin-top:10px">
+           <b>Override active.</b> This session will upload even though the angle
+           is not locked. If phase 0 moves the yaw to 50°, it cannot join the
+           series.
+           <button class="linkbtn" onclick="setOverride(false)">cancel override</button>
+         </div>`
+      : `<button class="linkbtn" onclick="setOverride(true)">
+           I need to upload a session anyway →
+         </button>`;
+  }
+
+  el.innerHTML = html;
+}
+
+function setOverride(on){
+  if (on && !confirm(
+      'The angle is not locked yet.\n\n' +
+      'If facemesh_check comes back 50°, every session you shoot at 60° now ' +
+      'is at the wrong angle and cannot join the longitudinal series.\n\n' +
+      'Upload anyway?')) return;
+  OVERRIDE = on;
+  applyGate();
+}
+
+async function lockAngle(deg){
+  if (!confirm(
+      `Lock the yaw angle at ${deg}°?\n\n` +
+      'Only do this after facemesh_check has passed. This opens daily capture, ' +
+      'and every session from here on is shot at this angle.')) return;
+  const fd = new FormData();
+  fd.append('angle_deg', deg);
+  try{
+    const r = await fetch('/lock-angle', {method:'POST', body:fd});
+    GATE = await r.json();
+    OVERRIDE = false;
+    applyGate();
+  }catch(e){ alert('could not lock: ' + e.message); }
+}
+
+async function unlockAngle(){
+  if (!confirm('Re-close daily capture? No stored image is touched.')) return;
+  try{
+    const r = await fetch('/unlock-angle', {method:'POST'});
+    GATE = await r.json();
+    applyGate();
+  }catch(e){ alert('could not unlock: ' + e.message); }
+}
+
+async function loadGate(){
+  try{
+    const r = await fetch('/gate', {cache:'no-store'});
+    GATE = await r.json();
+  }catch(e){ GATE = null; }
+  applyGate();
 }
 
 async function loadCalib(){
@@ -339,6 +493,11 @@ function clientInfo(f){
 
 async function upload(){
   const btn = document.getElementById('uploadBtn');
+  if (MODE==='session' && sessionLocked()){
+    alert('Daily sessions are locked until the angle is locked.\n\n'
+          + (GATE ? GATE.reason : ''));
+    return;
+  }
   const list = MODE==='calib' ? POSES.filter(p=>p.id==='left60') : POSES;
   const jobs = list.map(p=>({pose:p.id, name:p.name,
       file:(document.getElementById('f_'+p.id)||{}).files?.[0]}))
@@ -361,6 +520,7 @@ async function upload(){
     fd.append('kind', MODE);
     fd.append('covariates', JSON.stringify(MODE==='calib' ? {} : state.cov));
     fd.append('client', JSON.stringify(clientInfo(j.file)));
+    if (OVERRIDE) fd.append('override_gate', 'true');
 
     const div = document.createElement('div');
     div.className = 'res';
@@ -384,7 +544,7 @@ async function upload(){
         + `${q.aruco_found ? (q.aruco_px_per_mm+' px/mm · 1.5 mm = '
              + q.lesion_px_at_1p5mm + ' px') : 'no marker'} · `
         + `blur ${Math.round(q.lap_var||0)} · sha ${(d.sha256||'').slice(0,12)}</div>`;
-      if(d.calibration) renderCalibFrom(d.calibration);
+      if(d.gate) GATE = d.gate;
     }catch(e){
       div.className = 'res fail';
       div.innerHTML = `<b>${j.name}</b> — <span class="v fail">UPLOAD FAILED</span>
@@ -393,9 +553,8 @@ async function upload(){
   }
   btn.disabled = false; btn.textContent = 'Upload';
   if(MODE==='calib') loadCalib();
+  applyGate();
 }
-
-function renderCalibFrom(){ /* refreshed by loadCalib after the batch */ }
 
 async function submitRegimen(){
   const fd = new FormData();
@@ -428,6 +587,13 @@ wireSeg(document.getElementById('segLens'),   v=>state.lens=v);
 wireSeg(document.getElementById('segChange'), v=>state.change=v);
 renderPoses(); renderCovs();
 pingHealth(); setInterval(pingHealth, 15000);
+
+// Fetch the gate, then land on whichever mode is actually actionable: during
+// calibration that is the calibration tab, so the page opens on the thing you
+// are supposed to be doing rather than on a wall of greyed-out controls.
+loadGate().then(()=>{
+  if (GATE && !GATE.session_open) setMode('calib');
+});
 </script>
 </body>
 </html>
