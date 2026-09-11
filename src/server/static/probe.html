@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lesion Atlas — getUserMedia probe</title>
+<style>
+  :root{--bg:#12151a;--panel:#1b2029;--panel2:#232a35;--line:#2f3846;--ink:#e8edf4;
+    --dim:#96a3b5;--accent:#4da3ff;--ok:#35c07f;--bad:#ff5f56;--warn:#ffb02e}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    padding:env(safe-area-inset-top) 12px calc(env(safe-area-inset-bottom) + 20px)}
+  h1{font-size:17px;margin:14px 0 4px}
+  .sub{color:var(--dim);font-size:12px;margin-bottom:14px}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:13px;margin-bottom:12px}
+  h2{margin:0 0 9px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--dim)}
+  button{width:100%;padding:14px;font-size:15px;font-weight:600;font-family:inherit;
+    background:var(--accent);color:#06101c;border:0;border-radius:11px;margin-bottom:9px}
+  button.alt{background:var(--panel2);color:var(--ink);border:1px solid var(--line)}
+  video{width:100%;border-radius:10px;background:#000;display:block}
+  canvas{display:none}
+  pre{white-space:pre-wrap;word-break:break-all;font-size:11.5px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--dim);margin:0}
+  .kv{display:flex;justify-content:space-between;gap:10px;font-size:13px;
+    padding:5px 0;border-bottom:1px solid var(--line)}
+  .kv:last-child{border-bottom:0} .kv b{font-weight:600;text-align:right}
+  .big{font-size:26px;font-weight:700;margin:3px 0}
+  .ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)}
+  .note{background:#18222e;border:1px solid #2b3f55;border-radius:10px;
+    padding:11px;font-size:13px;line-height:1.5;margin-top:9px}
+  .muted{color:var(--dim);font-size:12px}
+</style>
+</head>
+<body>
+
+<h1>getUserMedia probe</h1>
+<div class="sub">
+  Throwaway. Captures nothing that enters the dataset — no frame here is
+  written to disk. This measures one thing: how many pixels iOS Safari
+  actually hands a web page, and therefore whether phase 1 can keep the
+  ghost overlay.
+</div>
+
+<section>
+  <h2>1 · Open the rear camera</h2>
+  <button onclick="start()">Request rear camera @ 4032 ideal</button>
+  <button class="alt" onclick="probeConstraints()">Try manual exposure / white balance</button>
+  <video id="v" playsinline muted autoplay></video>
+  <canvas id="c"></canvas>
+</section>
+
+<section>
+  <h2>2 · What iOS actually granted</h2>
+  <div id="granted"><span class="muted">not started</span></div>
+</section>
+
+<section>
+  <h2>3 · Measure px/mm through the stream</h2>
+  <div class="muted" style="margin-bottom:9px">
+    Hold the printed ArUco sheet flat at your real working distance (~30 cm),
+    fill the frame the way a pose would, and grab a frame. The server detects
+    the 30 mm marker in the <em>stream</em> resolution and reports what a
+    1.5 mm lesion would span.
+  </div>
+  <button onclick="grab()">Grab frame &amp; measure</button>
+  <div id="scale"><span class="muted">no measurement yet</span></div>
+</section>
+
+<section>
+  <h2>4 · Implication for phase 1</h2>
+  <div id="verdict"><span class="muted">measure first</span></div>
+</section>
+
+<section>
+  <h2>Raw track settings</h2>
+  <pre id="raw">—</pre>
+</section>
+
+<script>
+let stream = null, track = null;
+
+function row(k, v, cls){ return `<div class="kv"><span>${k}</span><b class="${cls||''}">${v}</b></div>`; }
+
+async function start(){
+  const g = document.getElementById('granted');
+  try{
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: {ideal:'environment'},
+        width:  {ideal: 4032},
+        height: {ideal: 3024},
+      },
+      audio: false,
+    });
+    const v = document.getElementById('v');
+    v.srcObject = stream; await v.play();
+    track = stream.getVideoTracks()[0];
+    const s = track.getSettings();
+    const c = track.getCapabilities ? track.getCapabilities() : {};
+
+    g.innerHTML =
+      row('Requested', '4032 × 3024') +
+      row('GRANTED', `${s.width} × ${s.height}`,
+          (s.width*s.height >= 3840*2160) ? 'ok' : 'warn') +
+      row('Megapixels', ((s.width*s.height)/1e6).toFixed(1) + ' MP') +
+      row('Frame rate', (s.frameRate||'?') + ' fps') +
+      row('Facing', s.facingMode || '(not reported)') +
+      row('Device', (track.label||'?').slice(0,40)) +
+      row('Max capability', c.width && c.width.max ? `${c.width.max} × ${c.height.max}`
+            : '(getCapabilities unsupported)');
+
+    document.getElementById('raw').textContent =
+      'settings:\n' + JSON.stringify(s, null, 2) +
+      '\n\ncapabilities:\n' + JSON.stringify(c, null, 2);
+  }catch(e){
+    g.innerHTML = `<span class="bad">FAILED: ${e.name} — ${e.message}</span>
+      <div class="note">iOS requires a <b>secure context</b> for getUserMedia.
+      On plain HTTP over the LAN Safari will refuse outright. That refusal is
+      itself a phase 0 finding: it is exactly why phase 1 needs mkcert or
+      Tailscale, and it does not block the upload page, which needs no secure
+      context.</div>`;
+  }
+}
+
+async function probeConstraints(){
+  const out = document.getElementById('granted');
+  if(!track){ out.innerHTML = '<span class="bad">start the camera first</span>'; return; }
+  const tests = [
+    {name:'exposureMode: manual',    c:{advanced:[{exposureMode:'manual'}]}},
+    {name:'whiteBalanceMode: manual',c:{advanced:[{whiteBalanceMode:'manual'}]}},
+    {name:'focusMode: manual',       c:{advanced:[{focusMode:'manual'}]}},
+    {name:'torch: true',             c:{advanced:[{torch:true}]}},
+    {name:'exposureCompensation: 0', c:{advanced:[{exposureCompensation:0}]}},
+  ];
+  let html = '<div class="muted" style="margin-bottom:7px">applyConstraints results — '
+           + 'iOS Safari is expected to refuse nearly all of these:</div>';
+  for(const t of tests){
+    let res;
+    try{
+      await track.applyConstraints(t.c);
+      const s = track.getSettings();
+      const key = Object.keys(t.c.advanced[0])[0];
+      const got = s[key];
+      res = (got !== undefined)
+        ? `<span class="ok">granted (${got})</span>`
+        : `<span class="warn">accepted, not reflected in settings</span>`;
+    }catch(e){ res = `<span class="bad">refused (${e.name})</span>`; }
+    html += `<div class="kv"><span>${t.name}</span><b>${res}</b></div>`;
+  }
+  html += `<div class="note">Whatever is refused here must be controlled
+    physically instead — one fixed lamp, blinds shut, same time of day. That is
+    why the rig matters more than the app.</div>`;
+  out.innerHTML = html;
+}
+
+async function grab(){
+  const out = document.getElementById('scale');
+  if(!track){ out.innerHTML = '<span class="bad">start the camera first</span>'; return; }
+  const v = document.getElementById('v'), c = document.getElementById('c');
+  const s = track.getSettings();
+  c.width = s.width; c.height = s.height;
+  c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+  out.innerHTML = '<span class="muted">measuring…</span>';
+
+  const blob = await new Promise(r=>c.toBlob(r, 'image/jpeg', 0.95));
+  const fd = new FormData();
+  fd.append('file', blob, 'probe.jpg');
+  try{
+    const r = await fetch('/probe/measure', {method:'POST', body:fd});
+    const d = await r.json();
+    if(!d.aruco_found){
+      out.innerHTML = `<span class="bad">marker not found</span>
+        <div class="muted" style="margin-top:6px">${d.note||''} — fill more of the
+        frame with the sheet, hold it flat and square on, and make sure it is
+        in focus.</div>`;
+      return;
+    }
+    out.innerHTML =
+      row('Stream resolution', `${d.width_px} × ${d.height_px}`) +
+      row('Scale', d.px_per_mm.toFixed(2) + ' px/mm') +
+      `<div class="big ${d.lesion_px_at_1p5mm>=10?'ok':(d.lesion_px_at_1p5mm>=6?'warn':'bad')}">
+         ${d.lesion_px_at_1p5mm.toFixed(1)} px</div>
+       <div class="muted">is what a 1.5 mm lesion spans at stream resolution</div>`;
+
+    const n = d.lesion_px_at_1p5mm;
+    document.getElementById('verdict').innerHTML = n >= 10
+      ? `<div class="big ok">Keep the ghost overlay</div>
+         <div>At ${n.toFixed(1)} px per 1.5 mm lesion, a canvas grab off the
+         video stream carries enough detail. Phase 1 can capture straight from
+         the stream and keep the ghost overlay live — one tap per pose.</div>
+         <div class="note">Confirm against the same sheet shot with the normal
+         Camera app. If the still is far sharper at the same px/mm, the stream
+         is being compressed and the pixel count is flattering it.</div>`
+      : `<div class="big bad">Ghost for alignment, native capture for the shot</div>
+         <div>At ${n.toFixed(1)} px per 1.5 mm lesion the stream is too coarse to
+         be the capture path — lesions at the size threshold would land on
+         ${n.toFixed(0)} pixels. Phase 1 uses the overlay to align, then the
+         native camera to shoot, at the cost of one extra tap per pose.</div>
+         <div class="note">Do not build either path yet. This measurement is the
+         input to that decision, not the decision.</div>`;
+  }catch(e){
+    out.innerHTML = `<span class="bad">measure failed: ${e.message}</span>`;
+  }
+}
+</script>
+</body>
+</html>

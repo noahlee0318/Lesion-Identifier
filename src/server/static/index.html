@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Lesion Atlas — upload</title>
+<style>
+  :root{
+    --bg:#12151a; --panel:#1b2029; --panel2:#232a35; --line:#2f3846;
+    --ink:#e8edf4; --dim:#96a3b5; --accent:#4da3ff; --ok:#35c07f;
+    --bad:#ff5f56; --warn:#ffb02e;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  body{margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 90px)}
+  header{padding:14px 16px 10px; border-bottom:1px solid var(--line);
+    position:sticky; top:0; background:var(--bg); z-index:10}
+  h1{margin:0; font-size:17px; letter-spacing:.2px}
+  .sub{color:var(--dim); font-size:12px; margin-top:3px}
+  main{padding:14px 14px 0}
+  section{background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:13px; margin-bottom:13px}
+  h2{margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--dim); font-weight:600}
+  label.row{display:block; margin-bottom:12px}
+  .lab{font-size:13px; color:var(--dim); margin-bottom:6px; display:block}
+  input[type=date], input[type=text]{width:100%; padding:11px 12px; font-size:16px;
+    background:var(--panel2); color:var(--ink); border:1px solid var(--line);
+    border-radius:9px; font-family:inherit}
+  /* 3-option tap rows. No keyboard ever opens for a covariate. */
+  .seg{display:flex; gap:6px}
+  .seg button{flex:1; padding:11px 4px; font-size:13px; font-family:inherit;
+    background:var(--panel2); color:var(--dim); border:1px solid var(--line);
+    border-radius:9px; cursor:pointer}
+  .seg button[aria-pressed=true]{background:var(--accent); color:#06101c;
+    border-color:var(--accent); font-weight:600}
+  .modes{display:flex; gap:6px; margin-bottom:13px}
+  .modes button{flex:1; padding:12px; font-size:14px; font-family:inherit; border-radius:10px;
+    background:var(--panel); color:var(--dim); border:1px solid var(--line); cursor:pointer}
+  .modes button[aria-pressed=true]{background:var(--panel2); color:var(--ink);
+    border-color:var(--accent); font-weight:600}
+  .pose{border:1px solid var(--line); border-radius:10px; padding:11px;
+    margin-bottom:10px; background:var(--panel2)}
+  .pose .hdr{display:flex; justify-content:space-between; align-items:center;
+    font-size:14px; font-weight:600; margin-bottom:8px}
+  .pose .tag{font-size:11px; color:var(--dim); font-weight:400}
+  input[type=file]{width:100%; font-size:13px; color:var(--dim)}
+  input[type=file]::file-selector-button{padding:9px 13px; margin-right:10px;
+    background:var(--accent); color:#06101c; border:0; border-radius:8px;
+    font-size:13px; font-weight:600; font-family:inherit}
+  .bigbtn{position:fixed; left:14px; right:14px; bottom:calc(env(safe-area-inset-bottom) + 14px);
+    padding:16px; font-size:16px; font-weight:700; font-family:inherit;
+    background:var(--accent); color:#06101c; border:0; border-radius:13px;
+    box-shadow:0 6px 22px rgba(0,0,0,.5); z-index:20}
+  .bigbtn:disabled{background:#33404f; color:#6d7b8d; box-shadow:none}
+  .res{margin-top:9px; padding:10px 11px; border-radius:9px; font-size:13px;
+    border:1px solid var(--line); background:var(--panel2)}
+  .res.pass{border-color:var(--ok)} .res.fail{border-color:var(--bad)}
+  .res .v{font-weight:700} .v.pass{color:var(--ok)} .v.fail{color:var(--bad)}
+  .res ul{margin:6px 0 0; padding-left:17px; color:var(--warn)}
+  .res .meta{color:var(--dim); font-size:11.5px; margin-top:5px;
+    font-family:ui-monospace,Menlo,Consolas,monospace; word-break:break-all}
+  .bar{height:9px; border-radius:5px; background:var(--panel2);
+    overflow:hidden; border:1px solid var(--line); margin:9px 0 7px}
+  .bar > i{display:block; height:100%; background:var(--ok); width:0}
+  .pips{display:flex; gap:5px; margin:9px 0}
+  .pips span{flex:1; height:26px; border-radius:6px; background:var(--panel2);
+    border:1px solid var(--line); display:flex; align-items:center;
+    justify-content:center; font-size:11px; color:var(--dim)}
+  .pips span.done{background:var(--ok); color:#062014; border-color:var(--ok); font-weight:700}
+  .note{background:#18222e; border:1px solid #2b3f55; border-radius:10px;
+    padding:11px 12px; font-size:13px; line-height:1.5}
+  .note ol{margin:7px 0 0; padding-left:19px} .note li{margin-bottom:5px}
+  .note b{color:var(--accent)}
+  details{margin-top:9px} summary{cursor:pointer; color:var(--accent); font-size:13px}
+  .status{position:fixed; top:0; left:0; right:0; padding:7px 14px; font-size:12.5px;
+    text-align:center; z-index:50; display:none; font-weight:600}
+  .status.down{display:block; background:var(--bad); color:#fff}
+  .muted{color:var(--dim); font-size:12px}
+  .kv{display:flex; justify-content:space-between; font-size:12.5px;
+    padding:3px 0; border-bottom:1px solid var(--line)}
+  .kv:last-child{border-bottom:0}
+  .kv b{font-weight:600}
+</style>
+</head>
+<body>
+
+<div id="offline" class="status">server unreachable — photos stay on your phone, upload later</div>
+
+<header>
+  <h1>Lesion Atlas</h1>
+  <div class="sub" id="sub">phase 0 ingest · plain HTTP · LAN only</div>
+</header>
+
+<main>
+  <div class="modes">
+    <button id="mSession" aria-pressed="true"  onclick="setMode('session')">Daily session</button>
+    <button id="mCalib"   aria-pressed="false" onclick="setMode('calib')">Phase 0 calibration</button>
+  </div>
+
+  <!-- ============ how to upload ============ -->
+  <section>
+    <h2>How to upload from your phone</h2>
+    <div class="note">
+      Shoot with the <b>normal Camera app</b>, then come back here and attach the
+      photos. This page never opens the camera itself.
+      <ol>
+        <li>Camera app → take the shots for this session. <b>Settings → Camera →
+            Formats → Most Compatible</b> so it writes JPEG, not HEIC.</li>
+        <li>Come back to this page and tap <b>Choose File</b> under each pose.</li>
+        <li>Pick <b>Photo Library</b> and select that pose's shot. iOS converts
+            HEIC to JPEG on the way out, which is why Most Compatible matters —
+            it keeps the conversion out of the loop entirely.</li>
+        <li>Set the lens you used, answer the tap rows, hit <b>Upload</b>.</li>
+        <li>Read the QA verdict. If a pose says <b>FAIL</b>, reshoot it now,
+            while the lamp and the tape are still where they were.</li>
+      </ol>
+      <details>
+        <summary>It says server unreachable</summary>
+        <div class="muted" style="margin-top:7px">
+          The laptop is asleep, off, or on a different Wi-Fi. Nothing is lost —
+          the photos sit in your camera roll and upload whenever you get back to
+          this page. Uploading hours late costs nothing; the session date field
+          is what dates the data, not the upload time.
+        </div>
+      </details>
+      <details>
+        <summary>Keep Originals, and why the file must not be re-encoded</summary>
+        <div class="muted" style="margin-top:7px">
+          <b>Settings → Camera → Formats</b> → Most Compatible, and
+          <b>Settings → Photos</b> → Transfer to Mac or PC → <b>Keep Originals</b>.
+          The server stores exactly the bytes it receives — no resize, no EXIF
+          strip. Run <code>scripts/verify_upload_fidelity.py</code> once before
+          the first real session to confirm Safari is not altering the file.
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ============ calibration counter ============ -->
+  <section id="calibPanel" style="display:none">
+    <h2>Calibration progress</h2>
+    <div id="calibBody"><span class="muted">loading…</span></div>
+  </section>
+
+  <!-- ============ session meta ============ -->
+  <section>
+    <h2>Session</h2>
+    <label class="row">
+      <span class="lab">Date</span>
+      <input type="date" id="sessionDate">
+    </label>
+    <label class="row">
+      <span class="lab">Lens</span>
+      <span class="seg" id="segLens">
+        <button data-v="main" aria-pressed="true">main</button>
+        <button data-v="2x"   aria-pressed="false">2×</button>
+      </span>
+    </label>
+    <label class="row" style="margin-bottom:0">
+      <span class="lab">Device tag</span>
+      <input type="text" id="device" value="iphone15" autocapitalize="off" autocorrect="off">
+    </label>
+  </section>
+
+  <!-- ============ photos ============ -->
+  <section>
+    <h2 id="photoHdr">Photos</h2>
+    <div id="poses"></div>
+  </section>
+
+  <!-- ============ covariates ============ -->
+  <section id="covPanel">
+    <h2>Covariates — tap only, no typing</h2>
+    <div id="covs"></div>
+    <div class="muted" style="margin-top:6px">
+      These cannot be collected retroactively. Ten seconds now is worth more
+      than any model later.
+    </div>
+  </section>
+
+  <!-- ============ results ============ -->
+  <section id="resPanel" style="display:none">
+    <h2>Result</h2>
+    <div id="results"></div>
+  </section>
+
+  <!-- ============ regimen ============ -->
+  <section>
+    <h2>Log a regimen change</h2>
+    <div class="muted" style="margin-bottom:9px">
+      Not a daily question. A regimen change is a step function and will drive
+      more of the variance in your series than anything in the tap rows above.
+    </div>
+    <label class="row">
+      <span class="lab">Date of change</span>
+      <input type="date" id="regDate">
+    </label>
+    <label class="row">
+      <span class="lab">Change</span>
+      <span class="seg" id="segChange">
+        <button data-v="added"        aria-pressed="true">added</button>
+        <button data-v="stopped"      aria-pressed="false">stopped</button>
+        <button data-v="dose_changed" aria-pressed="false">dose</button>
+      </span>
+    </label>
+    <label class="row">
+      <span class="lab">Product</span>
+      <input type="text" id="regProduct" placeholder="e.g. adapalene 0.1%">
+    </label>
+    <label class="row">
+      <span class="lab">Detail (optional)</span>
+      <input type="text" id="regDetail" placeholder="e.g. every other night">
+    </label>
+    <button class="seg" style="width:100%; padding:13px; font-size:15px; font-family:inherit;
+      background:var(--panel2); color:var(--ink); border:1px solid var(--accent);
+      border-radius:10px" onclick="submitRegimen()">Log regimen change</button>
+    <div id="regOut" class="muted" style="margin-top:9px"></div>
+  </section>
+</main>
+
+<button class="bigbtn" id="uploadBtn" onclick="upload()">Upload</button>
+
+<script>
+const POSES = [
+  {id:'frontal',  name:'Frontal',    owns:'forehead · chin & perioral'},
+  {id:'left60',   name:'Left 60°',   owns:'left cheek · left temple & sideburn'},
+  {id:'right60',  name:'Right 60°',  owns:'right cheek · right temple & sideburn'},
+];
+const COVS = [
+  {id:'sleep',             label:'Sleep',             opts:['<6','6-8','8+']},
+  {id:'stress',            label:'Stress',            opts:['low','med','high']},
+  {id:'diet',              label:'Diet',              opts:['clean','mixed','poor']},
+  {id:'workout',           label:'Worked out',        opts:['yes','light','no']},
+  {id:'skipped_wash',      label:'Skipped wash',      opts:['no','once','yes']},
+  {id:'routine_adherence', label:'Routine adherence', opts:['full','partial','missed']},
+];
+
+let MODE = 'session';
+const state = {lens:'main', change:'added', cov:{}};
+
+function todayISO(){
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+}
+
+function wireSeg(el, onPick){
+  el.querySelectorAll('button').forEach(b=>{
+    b.onclick = e => {
+      e.preventDefault();
+      el.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));
+      b.setAttribute('aria-pressed','true');
+      onPick(b.dataset.v);
+    };
+  });
+}
+
+function renderPoses(){
+  const list = MODE === 'calib' ? POSES.filter(p=>p.id==='left60') : POSES;
+  document.getElementById('poses').innerHTML = list.map(p=>`
+    <div class="pose">
+      <div class="hdr"><span>${p.name}</span><span class="tag">${p.owns}</span></div>
+      <input type="file" accept="image/*" id="f_${p.id}">
+    </div>`).join('');
+  document.getElementById('photoHdr').textContent =
+    MODE==='calib' ? 'Photo — left 60° only' : 'Photos — one per pose';
+}
+
+function renderCovs(){
+  document.getElementById('covs').innerHTML = COVS.map(c=>`
+    <label class="row">
+      <span class="lab">${c.label}</span>
+      <span class="seg" id="seg_${c.id}">
+        ${c.opts.map(o=>`<button data-v="${o}" aria-pressed="false">${o}</button>`).join('')}
+      </span>
+    </label>`).join('');
+  COVS.forEach(c=>wireSeg(document.getElementById('seg_'+c.id), v=>{state.cov[c.id]=v;}));
+}
+
+function setMode(m){
+  MODE = m;
+  document.getElementById('mSession').setAttribute('aria-pressed', m==='session');
+  document.getElementById('mCalib').setAttribute('aria-pressed',  m==='calib');
+  document.getElementById('calibPanel').style.display = m==='calib' ? '' : 'none';
+  document.getElementById('covPanel').style.display   = m==='calib' ? 'none' : '';
+  document.getElementById('sub').textContent = m==='calib'
+    ? 'phase 0 calibration · left 60° only · both lenses'
+    : 'phase 0 ingest · plain HTTP · LAN only';
+  renderPoses();
+  if (m==='calib') loadCalib();
+}
+
+async function loadCalib(){
+  const el = document.getElementById('calibBody');
+  try{
+    const c = await (await fetch('/calibration')).json();
+    const pct = Math.min(100, 100*c.complete_repeats/c.target_repeats);
+    const pips = Array.from({length:c.target_repeats}, (_,i)=>
+      `<span class="${i < c.complete_repeats ? 'done':''}">${i+1}</span>`).join('');
+    el.innerHTML = `
+      <div style="font-size:22px; font-weight:700">
+        ${c.complete_repeats} <span class="muted" style="font-size:14px">
+        / ${c.target_repeats} repeats</span>
+      </div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="pips">${pips}</div>
+      <div class="kv"><span>Images stored</span>
+        <b>${c.total_images} / ${c.expected_images}</b></div>
+      <div class="kv"><span>Days covered</span>
+        <b>${c.days_covered.length} / ${c.min_days}${
+          c.days_covered.length ? ' — ' + c.days_covered.join(', ') : ''}</b></div>
+      <div class="kv"><span>Still to shoot</span>
+        <b>${c.remaining_repeats} repeat(s)</b></div>
+      ${c.unpaired.length ? `<div class="res fail" style="margin-top:9px">
+        <span class="v fail">lens pairs incomplete</span>
+        <ul>${c.unpaired.map(u=>`<li>${u}</li>`).join('')}</ul></div>` : ''}
+      <div class="note" style="margin-top:10px">${c.message}
+        <div class="muted" style="margin-top:7px">
+          One repeat = one sitting, set up from scratch, shot on
+          <b>both</b> lenses. Five repeats total spread over at least three
+          days — not five per day. Same-day repeats do not test whether the
+          pose is reproducible tomorrow, which is the entire point.
+        </div>
+      </div>`;
+  }catch(e){ el.innerHTML = '<span class="muted">could not reach server</span>'; }
+}
+
+function clientInfo(f){
+  return {
+    user_agent: navigator.userAgent,
+    file_last_modified: f && f.lastModified
+      ? new Date(f.lastModified).toISOString() : null,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    page_version: 'p0-ingest-1',
+  };
+}
+
+async function upload(){
+  const btn = document.getElementById('uploadBtn');
+  const list = MODE==='calib' ? POSES.filter(p=>p.id==='left60') : POSES;
+  const jobs = list.map(p=>({pose:p.id, name:p.name,
+      file:(document.getElementById('f_'+p.id)||{}).files?.[0]}))
+    .filter(j=>j.file);
+
+  if(!jobs.length){ alert('Attach at least one photo first.'); return; }
+
+  btn.disabled = true; btn.textContent = 'Uploading…';
+  const out = document.getElementById('results');
+  document.getElementById('resPanel').style.display = '';
+  out.innerHTML = '';
+
+  for(const j of jobs){
+    const fd = new FormData();
+    fd.append('file', j.file);
+    fd.append('pose', j.pose);
+    fd.append('lens', state.lens);
+    fd.append('device', document.getElementById('device').value || 'iphone15');
+    fd.append('session_date', document.getElementById('sessionDate').value || todayISO());
+    fd.append('kind', MODE);
+    fd.append('covariates', JSON.stringify(MODE==='calib' ? {} : state.cov));
+    fd.append('client', JSON.stringify(clientInfo(j.file)));
+
+    const div = document.createElement('div');
+    div.className = 'res';
+    div.innerHTML = `<b>${j.name}</b> — uploading…`;
+    out.appendChild(div);
+
+    try{
+      const r = await fetch('/capture', {method:'POST', body:fd});
+      const d = await r.json();
+      if(!r.ok){ throw new Error(d.detail || ('HTTP '+r.status)); }
+      const q = d.qa || {};
+      const pass = q.verdict === 'PASS';
+      div.className = 'res ' + (pass?'pass':'fail');
+      div.innerHTML =
+        `<b>${j.name}</b> — <span class="v ${pass?'pass':'fail'}">${q.verdict||'?'}</span>`
+        + (d.duplicate ? ' <span class="muted">(duplicate — not rewritten)</span>' : '')
+        + (q.reasons && q.reasons.length
+            ? `<ul>${q.reasons.map(x=>`<li>${x}</li>`).join('')}</ul>` : '')
+        + `<div class="meta">${d.width_px||q.width_px}×${d.height_px||q.height_px} · `
+        + `${((d.bytes||0)/1048576).toFixed(1)} MB · `
+        + `${q.aruco_found ? (q.aruco_px_per_mm+' px/mm · 1.5 mm = '
+             + q.lesion_px_at_1p5mm + ' px') : 'no marker'} · `
+        + `blur ${Math.round(q.lap_var||0)} · sha ${(d.sha256||'').slice(0,12)}</div>`;
+      if(d.calibration) renderCalibFrom(d.calibration);
+    }catch(e){
+      div.className = 'res fail';
+      div.innerHTML = `<b>${j.name}</b> — <span class="v fail">UPLOAD FAILED</span>
+        <div class="meta">${e.message}</div>`;
+    }
+  }
+  btn.disabled = false; btn.textContent = 'Upload';
+  if(MODE==='calib') loadCalib();
+}
+
+function renderCalibFrom(){ /* refreshed by loadCalib after the batch */ }
+
+async function submitRegimen(){
+  const fd = new FormData();
+  fd.append('event_date', document.getElementById('regDate').value || todayISO());
+  fd.append('change', state.change);
+  fd.append('product', document.getElementById('regProduct').value);
+  fd.append('detail',  document.getElementById('regDetail').value);
+  const out = document.getElementById('regOut');
+  try{
+    const r = await fetch('/regimen', {method:'POST', body:fd});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.detail||('HTTP '+r.status));
+    document.getElementById('regProduct').value = '';
+    document.getElementById('regDetail').value = '';
+    out.innerHTML = 'logged. recent: ' + d.recent.slice(0,4)
+      .map(x=>`${x.event_date} ${x.change} ${x.product}`).join(' · ');
+  }catch(e){ out.textContent = 'failed: ' + e.message; }
+}
+
+async function pingHealth(){
+  try{
+    const r = await fetch('/health', {cache:'no-store'});
+    document.getElementById('offline').className = r.ok ? 'status' : 'status down';
+  }catch(e){ document.getElementById('offline').className = 'status down'; }
+}
+
+document.getElementById('sessionDate').value = todayISO();
+document.getElementById('regDate').value = todayISO();
+wireSeg(document.getElementById('segLens'),   v=>state.lens=v);
+wireSeg(document.getElementById('segChange'), v=>state.change=v);
+renderPoses(); renderCovs();
+pingHealth(); setInterval(pingHealth, 15000);
+</script>
+</body>
+</html>

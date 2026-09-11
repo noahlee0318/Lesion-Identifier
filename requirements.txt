@@ -1,0 +1,51 @@
+# Lesion Atlas - phase 0
+#
+# PYTHON 3.12 IS REQUIRED. mediapipe publishes no 3.13 or 3.14 wheels, and the
+# machine's default `python` is 3.14 - a venv built from it cannot install
+# mediapipe at all. Build the venv from a 3.12 interpreter:
+#
+#     <python3.12> -m venv .venv
+#     .\scripts\install_deps.ps1
+#
+# torch/torchvision come from the CUDA wheel index, NOT PyPI. Installing them
+# with a bare `pip install -r requirements.txt` gets you the CPU build and a
+# silently 20x slower LoFTR. Use scripts/install_deps.ps1, or pass the index
+# yourself:
+#
+#     pip install torch==2.11.0 torchvision==0.26.0 \
+#         --index-url https://download.pytorch.org/whl/cu128
+#
+# Verified working on: Windows 11, RTX 4050 Laptop (6 GiB), driver 591.66,
+# CUDA 12.8, 2026-09-11.
+
+# --- vision / geometry -----------------------------------------------------
+# contrib build ONLY - the ArUco module is not in plain opencv-python, and
+# installing both puts two cv2 modules in one venv where the last one wins.
+opencv-contrib-python==5.0.0.93
+mediapipe==1.0.1
+
+# --- numerics --------------------------------------------------------------
+numpy==2.5.3
+scipy==1.18.1
+matplotlib==3.11.1
+pillow==12.3.0
+
+# --- learned matching (LightGlue / DISK / LoFTR) ---------------------------
+# See the header: install torch from the cu128 index, not from here.
+torch==2.11.0
+torchvision==0.26.0
+kornia==0.8.3
+kornia_rs==0.1.14
+
+# --- ingest server ---------------------------------------------------------
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+python-multipart==0.0.32
+Jinja2==3.1.6
+qrcode==8.2
+
+# --- EXIF inspection (verify_upload_fidelity) ------------------------------
+piexif==1.1.3
+
+# --- docs tooling (PDF -> markdown, one-off) -------------------------------
+pypdf==6.18.1
