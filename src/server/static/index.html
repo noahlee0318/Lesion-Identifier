@@ -83,6 +83,16 @@
   .res.pass{border-color:var(--ok)} .res.fail{border-color:var(--bad)}
   .res .v{font-weight:700} .v.pass{color:var(--ok)} .v.fail{color:var(--bad)}
   .res ul{margin:6px 0 0; padding-left:17px; color:var(--warn)}
+  /* A rejection has to be actionable while the lamp is still set up, so the
+     plain-English line leads and the measurement hides behind a toggle. */
+  .prob{margin-top:9px; padding:10px 11px; border-radius:8px;
+    background:#241c1c; border:1px solid #4a2f2f}
+  .prob + .prob{margin-top:7px}
+  .prob .what{font-size:13.5px; font-weight:600; color:#ffd9d5; line-height:1.45}
+  .prob .fix{font-size:13px; color:var(--ink); margin-top:5px; line-height:1.45}
+  .prob .fix b{color:var(--accent)}
+  .res details.tech{margin-top:8px}
+  .res details.tech summary{color:var(--dim); font-size:12px}
   .res .meta{color:var(--dim); font-size:11.5px; margin-top:5px;
     font-family:ui-monospace,Menlo,Consolas,monospace; word-break:break-all}
   .bar{height:9px; border-radius:5px; background:var(--panel2);
@@ -150,8 +160,9 @@
             HEIC to JPEG on the way out, which is why Most Compatible matters —
             it keeps the conversion out of the loop entirely.</li>
         <li>Set the lens you used, answer the tap rows, hit <b>Upload</b>.</li>
-        <li>Read the QA verdict. If a pose says <b>FAIL</b>, reshoot it now,
-            while the lamp and the tape are still where they were.</li>
+        <li>Read the verdict. If a pose says <b>RESHOOT</b>, it tells you what
+            was wrong and what to change — do it now, while the lamp and the
+            tape are still where they were.</li>
       </ol>
       <details>
         <summary>It says server unreachable</summary>
@@ -527,6 +538,41 @@ function clientInfo(f){
   };
 }
 
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* What went wrong, and what to do about it. Nothing else. The server sends
+   {what, fix, detail} per problem; `detail` is the only place a number lives
+   and it sits behind the toggle below. Falls back to the old flat strings if
+   an older server is answering. */
+function problemsHtml(q){
+  const ps = q.problems || [];
+  if (ps.length)
+    return ps.map(p =>
+      `<div class="prob"><div class="what">${esc(p.what)}</div>`
+      + (p.fix ? `<div class="fix"><b>Do this:</b> ${esc(p.fix)}</div>` : '')
+      + `</div>`).join('');
+  if (q.reasons && q.reasons.length)
+    return `<ul>${q.reasons.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`;
+  return '';
+}
+
+/* Every number that used to be in your face, still here, one tap away. It is
+   how a mis-tuned threshold gets caught, so it is never dropped. */
+function techHtml(d, q){
+  const ps = q.problems || [];
+  const lines = ps.filter(p=>p.detail).map(p=>`<div>${esc(p.detail)}</div>`).join('');
+  const meta = `${d.width_px||q.width_px}×${d.height_px||q.height_px} · `
+    + `${((d.bytes||0)/1048576).toFixed(1)} MB · `
+    + `${q.aruco_found ? (q.aruco_px_per_mm+' px/mm · 1.5 mm = '
+         + q.lesion_px_at_1p5mm + ' px') : 'no marker'} · `
+    + `sharpness ${Math.round(q.lap_var||0)} · sha ${(d.sha256||'').slice(0,12)}`;
+  return `<details class="tech"><summary>measurements</summary>`
+    + `<div class="meta">${lines}${lines?'<br>':''}${meta}</div></details>`;
+}
+
 async function upload(){
   const btn = document.getElementById('uploadBtn');
   if (MODE==='session' && sessionLocked()){
@@ -571,20 +617,32 @@ async function upload(){
       const pass = q.verdict === 'PASS';
       div.className = 'res ' + (pass?'pass':'fail');
       div.innerHTML =
-        `<b>${j.name}</b> — <span class="v ${pass?'pass':'fail'}">${q.verdict||'?'}</span>`
-        + (d.duplicate ? ' <span class="muted">(duplicate — not rewritten)</span>' : '')
-        + (q.reasons && q.reasons.length
-            ? `<ul>${q.reasons.map(x=>`<li>${x}</li>`).join('')}</ul>` : '')
-        + `<div class="meta">${d.width_px||q.width_px}×${d.height_px||q.height_px} · `
-        + `${((d.bytes||0)/1048576).toFixed(1)} MB · `
-        + `${q.aruco_found ? (q.aruco_px_per_mm+' px/mm · 1.5 mm = '
-             + q.lesion_px_at_1p5mm + ' px') : 'no marker'} · `
-        + `blur ${Math.round(q.lap_var||0)} · sha ${(d.sha256||'').slice(0,12)}</div>`;
+        `<b>${j.name}</b> — <span class="v ${pass?'pass':'fail'}">${pass?'OK':'RESHOOT'}</span>`
+        + (d.duplicate ? ' <span class="muted">(same photo as before — not stored twice)</span>' : '')
+        + (pass ? '' : `<div class="muted" style="margin-top:6px">Take it again now,
+             while the lamp and the tape are where they are.</div>`)
+        + problemsHtml(q)
+        + techHtml(d, q);
       if(d.gate) GATE = d.gate;
     }catch(e){
+      // Two very different situations wear the same exception here: the
+      // laptop was unreachable, and the laptop answered "no". Saying which
+      // one is the whole difference between "try again" and "stop".
+      const gated = /angle|locked|calibration/i.test(e.message || '');
       div.className = 'res fail';
-      div.innerHTML = `<b>${j.name}</b> — <span class="v fail">UPLOAD FAILED</span>
-        <div class="meta">${e.message}</div>`;
+      div.innerHTML = `<b>${j.name}</b> — <span class="v fail">NOT SAVED</span>`
+        + `<div class="prob"><div class="what">`
+        + (gated
+            ? `The laptop turned this one down on purpose.`
+            : `Could not reach the laptop, so this photo was not saved.`)
+        + `</div><div class="fix"><b>Do this:</b> `
+        + (gated
+            ? esc(e.message)
+            : `Check the laptop is awake and on the same Wi-Fi, then hit Upload
+               again. Nothing is lost — the photo is still in your camera roll.`)
+        + `</div></div>`
+        + `<details class="tech"><summary>measurements</summary>`
+        + `<div class="meta">${esc(e.message)}</div></details>`;
     }
   }
   btn.disabled = false; btn.textContent = 'Upload';

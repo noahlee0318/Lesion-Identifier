@@ -18,6 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.tiling import (  # noqa: E402
+    MIN_VISIBLE,
     OVERLAP,
     TILE_PX,
     Tile,
@@ -25,11 +26,14 @@ from src.tiling import (  # noqa: E402
     covers_every_pixel,
     grid_shape,
     labels_in_tile,
+    lesion_size_warning,
+    max_safe_lesion_mm,
     owning_tile,
     stride_for,
     tiles_for,
     to_image_coords,
     to_tile_coords,
+    visible_fraction,
 )
 
 SHAPES = [(3024, 4032), (4032, 3024), (640, 640), (1000, 640), (500, 300), (2000, 1500)]
@@ -263,6 +267,250 @@ def test_owning_tile_agrees_with_assign():
     for tile_id, ls in assigned.items():
         for l in ls:
             assert owning_tile((l["x_px"], l["y_px"]), ts).tile_id == tile_id
+
+
+# --------------------------------------------------------------------------
+# visibility - a sliver is not a lesion
+# --------------------------------------------------------------------------
+
+def test_visible_fraction_matches_hand_computable_cases():
+    t = Tile("r0c0", 0, 0, 0, 0, 640, 640)
+    # Fully inside.
+    assert abs(visible_fraction(320, 320, 50, t) - 1.0) < 1e-9
+    # Centre exactly on the left edge: half the disc.
+    assert abs(visible_fraction(0, 320, 50, t) - 0.5) < 1e-9
+    # Centre exactly on a corner: a quarter.
+    assert abs(visible_fraction(0, 0, 50, t) - 0.25) < 1e-9
+    # A point label has no area to clip.
+    assert visible_fraction(320, 320, 0, t) == 1.0
+
+
+def test_visible_fraction_agrees_with_sampling_the_disc():
+    """The exact formula against the obvious approximation, as a cross-check."""
+    import math
+    import random
+
+    rng = random.Random(23)
+    t = Tile("r0c0", 0, 0, 100, 100, 740, 740)
+    for _ in range(40):
+        cx = rng.uniform(50, 800)
+        cy = rng.uniform(50, 800)
+        r = rng.uniform(5, 200)
+        exact = visible_fraction(cx, cy, r, t)
+        hit = n = 0
+        step = r / 40.0
+        y = -r
+        while y <= r:
+            x = -r
+            while x <= r:
+                if x * x + y * y <= r * r:
+                    n += 1
+                    if t.contains(cx + x, cy + y):
+                        hit += 1
+                x += step
+            y += step
+        assert abs(exact - hit / n) < 0.02, (
+            f"exact {exact:.3f} vs sampled {hit / n:.3f} at ({cx:.0f},{cy:.0f}) r={r:.0f}"
+        )
+
+
+def test_one_straight_edge_can_never_hide_more_than_half_a_lesion():
+    """The geometry that decides what `min_visible` can possibly do.
+
+    Center-membership already requires the centre to be inside the tile, and a
+    disc whose centre is inside a half-plane always has at least half its area
+    in that half-plane. So against ONE edge the visible fraction is >= 0.5 no
+    matter how close the centre gets - "centred 5 px from the edge with 90% of
+    the disc outside" cannot happen for a tile-resident label.
+
+    A default of min_visible = 0.5 therefore prunes only corners. Raising it
+    above 0.5 is what prunes edge slivers; see the module docstring.
+    """
+    t = Tile("r0c0", 0, 0, 0, 0, 640, 640)
+    for r in (30.0, 100.0, 300.0):
+        for x in (639.999, 639.0, 600.0):
+            f = visible_fraction(x, 320.0, r, t)
+            assert f >= 0.5 - 1e-9, f"r={r} x={x} gave {f}"
+    assert abs(visible_fraction(639.9999, 320.0, 300.0, t) - 0.5) < 1e-3
+
+
+def test_a_lesion_mostly_outside_the_tile_is_dropped():
+    """The case the filter can actually catch at the default: a corner.
+
+    Two edges at once, and the visible fraction goes to a quarter.
+    """
+    t = Tile("r0c0", 0, 0, 0, 0, 640, 640)
+    sliver = [{"id": 0, "x_px": 5.0, "y_px": 5.0, "r_px": 100}]
+    assert visible_fraction(5.0, 5.0, 100.0, t) < 0.3
+    assert labels_in_tile(sliver, t) == [], (
+        "a label three-quarters outside the crop was kept; that teaches the "
+        "detector that a small arc is a full-radius lesion"
+    )
+
+
+def test_raising_min_visible_is_what_prunes_edge_slivers():
+    """Documents the knob that implements the stated intent."""
+    t = Tile("r0c0", 0, 0, 0, 0, 640, 640)
+    half_cut = [{"id": 0, "x_px": 639.0, "y_px": 320.0, "r_px": 100}]
+    assert len(labels_in_tile(half_cut, t)) == 1, "0.5 keeps a half-cut lesion"
+    assert labels_in_tile(half_cut, t, min_visible=0.7) == []
+
+
+def test_an_interior_tile_corner_drops_but_a_neighbour_keeps():
+    """The drop is only acceptable because a neighbouring tile has it whole."""
+    shape = (2000, 2000)
+    ts = tiles_for(shape)
+    # A seam corner well inside the image: x = y = 640 is the far corner of
+    # tile r0c0 and sits in the overlap band of its neighbours.
+    lab = [{"id": 0, "x_px": 636.0, "y_px": 636.0, "r_px": 40}]
+    r0c0 = [t for t in ts if t.tile_id == "r0c0"][0]
+    assert labels_in_tile(lab, r0c0) == [], "expected the corner sliver to drop"
+    kept = [t for t in ts if labels_in_tile(lab, t)]
+    assert kept, "the lesion was dropped from every tile"
+    assert max(visible_fraction(636.0, 636.0, 40.0, t) for t in kept) > 0.999
+
+
+def test_a_lesion_well_inside_the_tile_is_kept():
+    t = Tile("r0c0", 0, 0, 0, 0, 640, 640)
+    lab = [{"id": 0, "x_px": 320.0, "y_px": 320.0, "r_px": 100}]
+    assert len(labels_in_tile(lab, t)) == 1
+
+
+def test_min_visible_zero_restores_pure_center_membership():
+    t = Tile("r0c0", 0, 0, 0, 0, 640, 640)
+    sliver = [{"id": 0, "x_px": 639.0, "y_px": 320.0, "r_px": 300}]
+    assert labels_in_tile(sliver, t, min_visible=0.0) == sliver
+
+
+def test_labels_without_a_radius_are_never_dropped():
+    t = Tile("r0c0", 0, 0, 0, 0, 640, 640)
+    pts = [{"id": 0, "x_px": 639.0, "y_px": 639.0}]
+    assert len(labels_in_tile(pts, t)) == 1
+    zero = [{"id": 1, "x_px": 639.0, "y_px": 639.0, "r_px": 0}]
+    assert len(labels_in_tile(zero, t)) == 1
+
+
+def test_min_visible_is_validated():
+    t = Tile("r0c0", 0, 0, 0, 0, 640, 640)
+    for bad in (-0.1, 1.5):
+        try:
+            labels_in_tile([], t, min_visible=bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"accepted min_visible={bad}")
+
+
+def test_a_dropped_lesion_is_still_whole_in_a_neighbouring_tile():
+    """The filter is only safe because of this. Test the guarantee, not the hope.
+
+    Every lesion up to the overlap bound must be retained by at least one
+    tile, at full visibility, no matter where its centre lands.
+    """
+    shape = (2000, 2000)
+    ts = tiles_for(shape)
+    stride = stride_for(TILE_PX, OVERLAP)
+    r = (TILE_PX - stride) / 2.0                  # the largest safe radius
+
+    for x in range(int(r), 2000 - int(r), 37):    # sweep across seams
+        lab = [{"id": 0, "x_px": float(x), "y_px": 1000.0, "r_px": r}]
+        kept = [t for t in ts if labels_in_tile(lab, t)]
+        assert kept, f"lesion at x={x} was dropped from every tile"
+        best = max(visible_fraction(x, 1000.0, r, t) for t in kept)
+        assert best > 0.999, (
+            f"lesion at x={x} is shown whole by no tile (best {best:.3f})"
+        )
+
+
+def test_past_the_bound_a_lesion_can_be_shown_whole_by_nothing():
+    """Documents why max_safe_lesion_mm has to be enforced upstream."""
+    shape = (2000, 2000)
+    ts = tiles_for(shape)
+    stride = stride_for(TILE_PX, OVERLAP)
+    r = (TILE_PX - stride)                        # twice the safe radius
+    worst = min(
+        max((visible_fraction(x, 1000.0, r, t) for t in ts if t.contains(x, 1000.0)),
+            default=0.0)
+        for x in range(int(r), 2000 - int(r), 13)
+    )
+    assert worst < 0.999, (
+        "an oversized lesion was shown whole everywhere - the bound would be "
+        "unnecessary, so either the bound or this test is wrong"
+    )
+
+
+def test_frame_edge_lesion_survives_when_the_image_shape_is_given():
+    """No tile can show what is not in the photo.
+
+    A lesion at the frame corner has three quarters of its disc outside the
+    IMAGE. Measured against the whole disc it looks 75% occluded and gets
+    dropped by every tile. Measured against its in-image area - which is all
+    of the lesion that was ever photographed - it is fully visible.
+    """
+    shape = (2000, 2000)
+    ts = tiles_for(shape)
+    corner = [{"id": 0, "x_px": 1.0, "y_px": 1.0, "r_px": 60}]
+
+    naive = [t for t in ts if labels_in_tile(corner, t)]
+    assert not naive, "expected the plain-disc rule to drop a frame-corner lesion"
+
+    aware = [t for t in ts if labels_in_tile(corner, t, image_shape=shape)]
+    assert aware, "image_shape did not rescue a lesion at the frame corner"
+
+
+def test_visibility_does_not_change_ownership():
+    """assign_labels_to_tiles is unaffected - counting stays center-based."""
+    shape = (2000, 2000)
+    ts = tiles_for(shape)
+    labs = [{"id": 0, "x_px": 639.0, "y_px": 320.0, "r_px": 300}]
+    assigned = assign_labels_to_tiles(labs, ts)
+    flat = [l["id"] for v in assigned.values() for l in v]
+    assert flat == [0], "a barely-visible lesion vanished from the count"
+
+
+def test_default_min_visible_is_one_half():
+    assert MIN_VISIBLE == 0.5
+
+
+# --------------------------------------------------------------------------
+# the bound the visibility filter rests on
+# --------------------------------------------------------------------------
+
+def test_max_safe_lesion_is_the_overlap_in_mm():
+    # 640 px tiles at 20% overlap -> stride 512 -> 128 px of overlap.
+    assert max_safe_lesion_mm(1.0) == 128.0
+    assert abs(max_safe_lesion_mm(26.0) - 128.0 / 26.0) < 1e-12
+    # The documented number for the locked geometry.
+    assert abs(max_safe_lesion_mm(26.0) - 4.923) < 0.001
+
+
+def test_max_safe_lesion_scales_with_overlap():
+    assert max_safe_lesion_mm(26.0, 640, 0.4) > max_safe_lesion_mm(26.0, 640, 0.2)
+    assert max_safe_lesion_mm(26.0, 640, 0.0) == 0.0
+
+
+def test_max_safe_lesion_rejects_a_nonsense_scale():
+    for bad in (0.0, -3.0):
+        try:
+            max_safe_lesion_mm(bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"accepted px_per_mm={bad}")
+
+
+def test_lesion_size_warning_fires_only_past_the_bound():
+    assert lesion_size_warning(3.0, 26.0) is None
+    assert lesion_size_warning(4.9, 26.0) is None
+    msg = lesion_size_warning(8.0, 26.0)
+    assert msg and "8.0" in msg and "4.9" in msg, msg
+
+
+def test_the_bound_matches_what_the_tiles_actually_do():
+    """Derivation and implementation, checked against each other."""
+    for tile, overlap in ((640, 0.2), (512, 0.25), (800, 0.1)):
+        stride = stride_for(tile, overlap)
+        assert max_safe_lesion_mm(1.0, tile, overlap) == tile - stride
 
 
 # --------------------------------------------------------------------------
