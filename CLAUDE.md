@@ -1,8 +1,14 @@
 # CLAUDE.md — Lesion Atlas
 
 Read this before doing anything. It carries decisions that are already locked.
-Full reasoning lives in `docs/build-plan.md`, `docs/runbook.md`, and
-`docs/capture-geometry.md`.
+
+- `docs/DECISIONS.md` — dated log of settled decisions and why. **Authoritative
+  where anything else disagrees.**
+- `docs/build-plan.md`, `docs/runbook.md`, `docs/capture-geometry.md` — the
+  11 Sept morning snapshots, converted from the artifact PDFs. Rich on
+  reasoning, but they predate several decisions; DECISIONS.md supersedes them.
+- `README.md` — commands. `docs/PHASE0_CHECKLIST.md` — the physical steps Noah
+  does himself.
 
 ## What this is
 
@@ -15,14 +21,54 @@ Single subject (Noah). Runs entirely on a Windows 11 Lenovo LOQ with an
 NVIDIA GPU. Capture device is an iPhone 15. Nothing leaves the laptop.
 
 **Current state: phase 0 tooling built and verified against synthetic
-fixtures. Blocked on real calibration photos.** See `README.md` for commands
-and `docs/PHASE0_CHECKLIST.md` for the physical steps Noah has to do.
+fixtures. Blocked on real calibration photos — five left-60 shots across three
+calendar days, which cannot be compressed.** The gap-work items (tiler,
+date split) are built; the labeling tool is not started.
+
+## What is built
+
+Verified against synthetic fixtures only. No real photo has entered any of it.
+
+**Phase 0 spike**
+| File | Does | State |
+|---|---|---|
+| `src/fiducial.py` | ArUco + colour patch target, print verification, px/mm | built |
+| `src/facemesh_check.py` | Landmark detection, head pose, per-landmark stability, angle verdict | built, awaiting photos |
+| `src/controlpoints.py` | Hand-marking tool, stable mole ids across images | built |
+| `src/register.py` | 6-method bake-off, pooled mm residuals, TPS, blink review, GO/NO-GO | built, awaiting photos |
+| `src/lens_compare.py` | Per-region sharpness, main @30cm vs 2x @55cm | built, awaiting photos |
+
+**Ingest (P0 half of the P1 server — deliberately no camera code)**
+| File | Does | State |
+|---|---|---|
+| `src/server/main.py` | FastAPI, plain HTTP, `/`, `/capture`, `/health`, `/probe` | built |
+| `src/server/db.py` | SQLite: sessions, images, regimen_events | built |
+| `src/server/qa.py` | Blur, clipping, fiducial-found, px/mm per upload | built, thresholds provisional |
+| `src/server/static/index.html` | Upload page, covariate taps, regimen form | built |
+| `src/server/static/probe.html` | getUserMedia resolution + granted-constraints probe | built, awaiting run |
+
+**Pipeline foundations (gap work)**
+| File | Does | State |
+|---|---|---|
+| `src/tiling.py` | 640px/20% grid, image<->tile coords, membership, visibility | built, tested |
+| `src/splits.py` | Date-based splits, trailing windows, washout, write-once | built, tested |
+| `src/config.py` | Paths, locked domain constants, gate thresholds | built |
+
+**Scripts**: `verify_env.py`, `fetch_weights.py`, `install_deps.ps1`,
+`install_autostart.ps1` / `uninstall_autostart.ps1`, `backup_data.ps1`,
+`verify_upload_fidelity.py`.
+
+**Tests**: `test_tiling.py`, `test_splits.py`, `test_register.py`,
+`make_synthetic.py` (fixture generator).
+
+**Not built**: the labeling tool (P2), the capture app (P1 — blocked on the
+`/probe` measurement), atlas freezing and `regions.py` (P3), detector (P4),
+tracking (P5), visualization (P6).
 
 ## Locked decisions — do NOT re-litigate these
 
-These were argued through and settled on 2026-09-11. If you think one is
-wrong, say so once in one paragraph and then proceed as specified. Do not
-silently redesign around them.
+Settled 2026-09-11. If you think one is wrong, say so once in one paragraph and
+then proceed as specified. Do not silently redesign around them.
 
 - **3 poses: frontal, left 60 deg yaw, right 60 deg yaw.** No zooming.
 - **6 regions**: forehead, chin & perioral, L cheek (to jawline), R cheek
@@ -41,8 +87,8 @@ silently redesign around them.
 ### Why 60 deg (so you do not re-derive it)
 
 Skin at angle theta to the sensor projects at cos(theta) of true size.
-Incidence ~= |phi - yaw|, where phi is a face point's azimuth from
-straight-ahead (nose ~0 deg, directly lateral ~90 deg).
+Incidence ~= |phi - yaw|, phi being azimuth from straight-ahead (nose ~0 deg,
+directly lateral ~90 deg).
 
 | Region | phi | Frontal | 45 deg | **60 deg** | 90 deg |
 |---|---|---|---|---|---|
@@ -60,9 +106,9 @@ straight-ahead (nose ~0 deg, directly lateral ~90 deg).
   self-reporting registration-error estimate.
 - **Not 45 deg**: 60 deg drops the sideburn from 35 to 20 deg incidence and
   puts the lateral cheek at 0, while staying inside Face Mesh's range.
-- **The one open geometry question**: if phase 0 shows Face Mesh does not
-  fire reliably at 60 deg, step down to 50 deg. That constraint sets the
-  angle, not aesthetics.
+- **The one open geometry question**: if phase 0 shows Face Mesh does not fire
+  reliably at 60 deg, step down to 50 deg. That constraint sets the angle, not
+  aesthetics.
 
 ## Gates — do not advance a phase until its gate passes
 
@@ -79,15 +125,20 @@ Only methods that scored on every pair are eligible. The recommendation is the
 **simplest method that clears**, not the lowest number; pooled median breaks
 ties inside a complexity tier and nowhere else. A p95 is refused below 20
 pooled residuals, and a median that clears while p95 is unevaluable is
-**INCONCLUSIVE**, not GO. Full reasoning in `docs/DECISIONS.md`.
+**INCONCLUSIVE**, not GO.
+
+**Only the angle lock gates real daily sessions.** The registration gate does
+not. If registration comes back at 2.5mm, that is a software problem solved
+with better matching — the photos are still valid and still belong to the
+series. Do not hold up capture waiting on it.
 
 ## Phase map
 
-0. **Spike** (wk1) — Face Mesh at 60 deg; registration method bake-off;
-   lens test; ingest server; iOS verification tests.
+0. **Spike** (wk1) — Face Mesh at 60 deg; registration bake-off; lens test;
+   ingest server; iOS verification tests.
 1. **Capture rig + app** (wk1-2) — HTTPS, getUserMedia, 3-step wizard,
    ghost overlay at 35% opacity, live alignment readout in mm.
-2. **Labeling** (wk2-6) — RUBRIC.md, custom canvas tool, active learning.
+2. **Labeling** (wk2-6) — RUBRIC.md, custom tool, active learning.
 3. **Canonical space** (wk3-4) — freeze atlases, register, region polygons.
 4. **Detector** (wk5-7) — 640px tiles @ 20% overlap, sliced inference, YOLO
    or RT-DETR.
@@ -95,7 +146,9 @@ pooled residuals, and a median that clears while p95 is unevaluable is
 6. **Visualization** (wk8+) — counts over time, density heatmaps, swimlanes.
 7. **Later ML** — DINOv2 self-supervised pretraining, resolution forecasting.
 
-Daily capture is not a phase. It starts on day 3 of week 1 and never stops.
+Daily capture is not a phase. It starts on day 3-4 of week 1 and never stops.
+RUBRIC.md belongs to P2, not P0 — written with real borderline crops in hand,
+because a rubric drafted before seeing real high-res skin is made of guesses.
 
 ## Hard rules
 
@@ -105,52 +158,78 @@ Daily capture is not a phase. It starts on day 3 of week 1 and never stops.
   no resize, no EXIF strip, no "normalization". Store a SHA-256 per file.
 - **Reject, do not average.** A bad registration is discarded, never blended
   into an atlas.
-- **Split by date, never randomly.** Consecutive days are near-duplicates;
-  a random split leaks badly and will produce fake metrics. The default rule
-  is fixed trailing calendar windows (14d test, 14d val, 3d washout), so the
-  held-out set is the same size forever and always current. Split files are
-  **write-once**: `save_split` refuses to overwrite, because a metric with no
-  record of which days were held out is worthless.
+- **Labels live in IMAGE coordinates, never tile coordinates.** Tiles are a
+  view, generated on demand, never a storage format. Per-tile storage would
+  mean changing `tile` or `overlap` later invalidates every label ever made.
+  Retiling must stay free.
+- **Two membership rules, and they are not interchangeable.**
+  `labels_in_tile` returns every label centred in a tile that is at least
+  `min_visible` visible — **for training**, and a label may appear in several
+  tiles, which is correct: a crop that renders a lesion must carry its label.
+  `assign_labels_to_tiles` gives exactly one owner — **for counting**. Same
+  shape as `detections.owned` for the pose overlap band.
+- **Edge tiles are clamped, never zero-padded.** Every frame would pad on the
+  same two edges, so the border correlates with position in frame — exactly the
+  spurious signal a single-subject dataset latches onto. Sliced inference must
+  inherit the same clamped grid.
+- **Split by date, never randomly.** Consecutive days are near-duplicates; a
+  random split leaks badly and will produce fake metrics. Default rule is fixed
+  trailing calendar windows (14d test, 14d val, 3d washout), so the held-out
+  set is the same size forever and always current. Washout is measured in
+  **calendar days**, not date-index. Split files are **write-once**:
+  `save_split` refuses to overwrite, because a metric with no record of which
+  days were held out is worthless.
 - **Control points are held-out ground truth.** Never fit a transform using
-  them — and never **select** with them either: picking which of six methods
-  to report, or which matcher to spline, using control-point error is
-  selection on the test set and biases the gate downward. If you are tempted,
-  stop and say so.
+  them — and never **select** with them either: picking which of six methods to
+  report, or which matcher to spline, using control-point error is selection on
+  the test set and biases the gate downward. If you are tempted, stop and say
+  so.
 - **Log covariates from day one.** They cannot be collected retroactively.
-- **Adherence is the #1 project risk.** Capture must stay under 60s. Every
-  added pose is daily friction. Weigh features against that.
+  Six daily 3-option tap rows; regimen change is a dated `regimen_events` row,
+  never a tap row, because it is a step function and will drive most of the
+  variance in the series.
+- **Adherence is the #1 project risk.** Capture must stay under 60s. The server
+  autostarts at logon so starting it is never a remembered step. Every added
+  pose is daily friction. Weigh features against that.
 - **Gen AI has near-zero value for the core task.** Legit uses: VLM
-  pre-labeling in P2, a natural-language query layer. Diffusion synthetic
-  data will likely hurt on a single-subject dataset. Do not propose it.
+  pre-labeling in P2, a natural-language query layer. Diffusion synthetic data
+  will likely hurt on a single-subject dataset. Do not propose it.
 
 ## Device constraints (iPhone 15 / iOS Safari)
 
 - **`ImageCapture` is unsupported in Safari.** It is Chromium-only. Do not
-  write `ImageCapture.takePhoto()`. See `docs/runbook.md` for the two
-  fallbacks and the P0 measurement that decides between them.
+  write `ImageCapture.takePhoto()`. The two fallbacks — canvas grab off the
+  video stream (keeps the ghost overlay, capped at video resolution) vs
+  `<input capture="environment">` (full still resolution, loses the overlay) —
+  are decided by the `/probe` px/mm measurement, not by argument.
 - **iOS Safari will not honor manual exposure/WB constraints.** Call
-  `applyConstraints` anyway and **log what was actually granted** rather
-  than assuming it worked.
+  `applyConstraints` anyway and **log what was actually granted** rather than
+  assuming it worked.
 - **A file input needs no secure context.** Plain HTTP is fine for the P0
-  upload page. HTTPS (mkcert or Tailscale) is required only for
-  `getUserMedia` in P1.
-- Camera set to **Most Compatible** (writes JPEG, not HEIC) and Photos set
-  to **Keep Originals**.
-- Safari's file picker may alter uploads. This is verified in P0 before any
-  image joins the longitudinal series.
+  upload page. HTTPS (mkcert or Tailscale) is required only for `getUserMedia`
+  in P1.
+- Camera set to **Most Compatible** (writes JPEG, not HEIC) and Photos set to
+  **Keep Originals**.
+- Safari's file picker may alter uploads. Verified by
+  `scripts/verify_upload_fidelity.py` before any image joins the series.
 
 ## Conventions
 
-- Images: `data/raw/YYYY-MM-DD/<pose>_<lens>_<device>_<HHMMSS>.jpg`
-- Poses: `frontal` | `left60` | `right60`
-- Lenses: `main` | `2x`
+- Data root is **outside the repo**: `C:\LesionAtlas\data`, override with
+  `LESION_ATLAS_DATA`. See Privacy.
+- Images: `<DATA_ROOT>/raw/YYYY-MM-DD/<pose>_<lens>_<device>_<HHMMSS>.jpg`
+- Poses: `frontal` | `left60` | `right60`. Lenses: `main` | `2x`.
 - JPEG q~92. Never HEIC, never raw.
-- `data/` and `reports/` are gitignored and never committed.
 - Schema: `sessions` -> `images` (keyed by pose + lens) -> `detections`
   (per-image, disposable, regenerable; carries `region` + `owned`) and
   `lesions` (durable cross-day identity), joined by `observations`. Plus
   `labels` and a dated `regimen_events` log.
-- Fiducial: ArUco `DICT_4X4_50`, id 0, 30mm, matte paper, plus color patch.
+- `sessions.kind` is `'session'` or `'calibration'`. Calibration images never
+  enter a split, a training set, or a count.
+- Tiles: 640px, 20% overlap, stride 512, ids `r{row}c{col}` derived from
+  position. Membership rect is half-open `[x0,x1) x [y0,y1)`.
+- Fiducial: ArUco `DICT_4X4_50`, id 0, 30mm, matte paper, plus colour patch.
+- Locked domain constants live in `src/config.py`, not scattered as literals.
 
 ## Environment
 
@@ -162,21 +241,21 @@ Daily capture is not a phase. It starts on day 3 of week 1 and never stops.
   uv-managed 3.12.13 interpreter. `scripts\verify_env.py` checks this first.
 - **mediapipe is 1.0.1, which REMOVED `mp.solutions` entirely.**
   `FaceMesh(refine_landmarks=True)` no longer exists. Use the Tasks API
-  `FaceLandmarker` with `models/weights/face_landmarker.task` — it emits the
-  same 478 landmarks (468 face + 10 iris) with the same indices, plus a
-  facial transformation matrix that gives head pose directly. See
-  `src/facemesh_check.py`.
+  `FaceLandmarker` with `models/weights/face_landmarker.task` — same 478
+  landmarks (468 face + 10 iris) with the same indices, plus a facial
+  transformation matrix giving head pose directly. See `src/facemesh_check.py`.
 - **OpenCV is 5.0.** ArUco, SIFT, ORB and the TPS shape transformer are all
   present in the contrib build; the `ArucoDetector` class API is used, not the
   removed free-function `detectMarkers`.
-- 6 GiB of VRAM is the real constraint on LoFTR. It runs at a capped
-  resolution and matches are scaled back to full res — see the caps at the top
-  of `src/register.py`.
+- 6 GiB of VRAM is the real constraint on LoFTR. It runs at a capped resolution
+  and matches are scaled back to full res — see the caps at the top of
+  `src/register.py`.
 - `opencv-contrib-python` (contrib, for ArUco — never alongside plain
   `opencv-python`), mediapipe, numpy, scipy, matplotlib, torch+torchvision
-  CUDA, kornia, pillow.
-- Pre-fetch LightGlue/DISK and LoFTR weights and cache them in-repo
-  (gitignored) so the spike cannot fail on a download.
+  CUDA, kornia, pillow, fastapi, uvicorn.
+- LightGlue/DISK and LoFTR weights are cached in-repo under `models/weights`
+  (gitignored) by `scripts/fetch_weights.py`, so a spike cannot fail on a
+  download.
 - **Ask before adding any dependency not already in `requirements.txt`.**
 
 ## Privacy
@@ -196,17 +275,16 @@ The photos are several hundred high-resolution images of Noah's face.
   ```
   It originally sat in `OneDrive\Desktop\pimple detector`, which would have
   auto-uploaded every photo to Microsoft. OneDrive has no reliable
-  per-subfolder upload exclusion, so the project was moved out entirely
-  rather than an exception carved for `data/`.
+  per-subfolder upload exclusion, so the project was moved out entirely rather
+  than an exception carved for `data/`.
   **Do not move it back under OneDrive, Dropbox, iCloud or Google Drive.**
-- **`DATA_ROOT` stays OUTSIDE the repo** — `C:\LesionAtlas\data` by default,
-  override with `LESION_ATLAS_DATA`. This still matters now that nothing is
-  synced: it means no git operation, clone, or accidental `git add -f` can
-  reach an image. **Do not move the data root back inside the repo.**
+- **`DATA_ROOT` stays OUTSIDE the repo.** This still matters now that nothing
+  is synced: no git operation, clone, or accidental `git add -f` can reach an
+  image. **Do not move the data root back inside the repo.**
 - **A git remote exists, and it is code-only.** Decided 2026-09-11 at Noah's
   request, deliberately before any real image existed. This supersedes the
-  earlier "no git remote" rule for CODE. It does not relax anything about
-  images: no photo is ever committed, force-added, or pushed.
+  earlier "no git remote" rule for CODE. It relaxes nothing about images: no
+  photo is ever committed, force-added, or pushed.
 - Backup goes to an external drive or local folder, never a git host and never
   a cloud service. `scripts\backup_data.ps1`.
 - No image is ever sent to a third-party API. Not for labeling, not for
@@ -214,24 +292,49 @@ The photos are several hundred high-resolution images of Noah's face.
 
 ## How Noah wants work run
 
-- **Blunt over encouraging.** If a result is bad, say it is bad. If an idea
-  is wrong, say so before he spends a week on it. No praise padding.
+- **Blunt over encouraging.** If a result is bad, say it is bad. If an idea is
+  wrong, say so before he spends a week on it. No praise padding.
 - State the verdict first, then the reasoning.
+- **That is how REPORTS are written. Anything Noah reads AT THE RIG is the
+  opposite: plain English, no jargon.** QA rejections, gate banners, upload
+  errors. He is on a phone at 7am with the lamp still set up, and a message
+  he has to decode gets overridden instead of acted on - which is how a bad
+  frame enters the series. Structure it `what` / `fix` / `detail`: what is
+  wrong in words, the physical action to take now, then the measurement -
+  kept, but small and behind a toggle. Never drop the numbers: the QA
+  thresholds are provisional and the measurement is how a wrong one gets
+  caught. See `Problem` in `src/server/qa.py`; `tests/test_qa_messages.py`
+  enforces it with a jargon blocklist.
+- **Push back on a spec you think is wrong, before implementing it.** This has
+  already paid for itself three times: center-membership does not partition
+  overlapping tiles, float round-trips cannot be bit-exact through a
+  translation, and `_spatial_subsample`'s real bug was a collapsing per-cell
+  quota rather than the truncation it was reported as. A wrong fix that looks
+  reviewed is worse than a known-wrong original.
 - Build in reviewable chunks and verify each one before moving on.
 - When a gate fails, name what failed and the cheapest next lever. Do not
   soften it.
 - Flag the physical-world steps he has to do himself rather than working
   around them — rigging, printing, shooting. You cannot do those.
+- Record settled decisions in `docs/DECISIONS.md` as they happen. A decision
+  that lives only in a chat is lost to the next session.
 
 ## Open questions
 
 - Face Mesh reliability at 60 deg (P0 decides; fallback 50 deg).
-- Which registration method wins (P0 bake-off) — decided by *simplest that
-  clears the pooled gate*, not by lowest number.
+- Which registration method wins — decided by *simplest that clears the pooled
+  gate*, not by lowest number.
 - Main lens @ 30cm vs 2x @ 55cm (P0 lens test).
-- Does iOS Safari alter uploaded files (P0 fidelity check).
-- px/mm at video-stream resolution — decides whether P1 keeps the ghost
-  overlay or switches to native capture.
+- Does iOS Safari alter uploaded files (`verify_upload_fidelity.py`).
+- px/mm at video-stream resolution (`/probe`) — decides whether P1 keeps the
+  ghost overlay or switches to native capture.
+- **A pair no method can score currently sinks the verdict.** Gate eligibility
+  requires scoring every pair, so one under-marked image makes every method
+  ineligible and the verdict reads NO-GO — a data problem presented as a
+  registration failure. Detect pairs scored by zero methods, drop them from the
+  pool, and say so loudly above the verdict.
+- QA thresholds in `config.py` are provisional and need retuning on real
+  photos.
 - ACNE04 dataset availability and license (P4, check before relying on it).
 - The six region polygons are named but not yet defined in canonical
   coordinates (P3).
