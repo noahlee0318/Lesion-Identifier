@@ -21,7 +21,8 @@ Single subject (Noah). Runs entirely on a Windows 11 Lenovo LOQ with an
 NVIDIA GPU. Capture device is an iPhone 15. Nothing leaves the laptop.
 
 **Current state: phase 0 tooling built and verified against synthetic
-fixtures. Blocked on real calibration photos — five left-60 shots across three
+fixtures. First real photos arrived 2026-09-11 (2 calibration shots, both
+failed QA). Blocked on real calibration photos — five left-60 shots across three
 calendar days, which cannot be compressed.** The gap-work items (tiler,
 date split) are built; the labeling tool is not started.
 
@@ -35,7 +36,7 @@ Verified against synthetic fixtures only. No real photo has entered any of it.
 | `src/fiducial.py` | ArUco + colour patch target, print verification, px/mm | built |
 | `src/facemesh_check.py` | Landmark detection, head pose, per-landmark stability, angle verdict | built, awaiting photos |
 | `src/controlpoints.py` | Hand-marking tool, stable mole ids across images | built |
-| `src/register.py` | 6-method bake-off, pooled mm residuals, TPS, blink review, GO/NO-GO | built, awaiting photos |
+| `src/register.py` | Method-ladder bake-off, pooled mm residuals, TPS, blink review, GO/NO-GO | built, awaiting photos |
 | `src/lens_compare.py` | Per-region sharpness, main @30cm vs 2x @55cm | built, awaiting photos |
 
 **Ingest (P0 half of the P1 server — deliberately no camera code)**
@@ -43,7 +44,7 @@ Verified against synthetic fixtures only. No real photo has entered any of it.
 |---|---|---|
 | `src/server/main.py` | FastAPI, plain HTTP, `/`, `/capture`, `/health`, `/probe` | built |
 | `src/server/db.py` | SQLite: sessions, images, regimen_events | built |
-| `src/server/qa.py` | Blur, clipping, fiducial-found, px/mm per upload | built, thresholds provisional |
+| `src/server/qa.py` | Blur, exposure, fiducial-found, px/mm per upload; plain-English rejections | built, thresholds provisional |
 | `src/server/static/index.html` | Upload page, covariate taps, regimen form | built |
 | `src/server/static/probe.html` | getUserMedia resolution + granted-constraints probe | built, awaiting run |
 
@@ -59,7 +60,8 @@ Verified against synthetic fixtures only. No real photo has entered any of it.
 `verify_upload_fidelity.py`.
 
 **Tests**: `test_tiling.py`, `test_splits.py`, `test_register.py`,
-`make_synthetic.py` (fixture generator).
+`test_qa_messages.py`, `make_synthetic.py` (fixture generator). All run
+standalone (`python -m tests.test_x`) — pytest is not installed.
 
 **Not built**: the labeling tool (P2), the capture app (P1 — blocked on the
 `/probe` measurement), atlas freezing and `regions.py` (P3), detector (P4),
@@ -127,6 +129,21 @@ ties inside a complexity tier and nowhere else. A p95 is refused below 20
 pooled residuals, and a median that clears while p95 is unevaluable is
 **INCONCLUSIVE**, not GO.
 
+A pair that **no** method could score — usually fewer than three control-point
+ids shared with the reference — is dropped before eligibility is judged and
+named loudly above the verdict as a *data* problem. Without that, one
+under-marked image makes every method incomplete, nothing is eligible, and the
+headline reads NO-GO: a registration failure announced because of an
+annotation. Dropping such a pair can only ever add eligible methods; a pair
+scored by *some* methods stays in, and the methods that missed it stay
+ineligible. Do not "simplify" this away.
+
+**The blink compare must show the transform the millimetres score.** For a TPS
+the dense warp inverts the spline numerically (Newton, seeded from a reverse
+fit) and the review screen prints the measured round-trip error. A separately
+fitted reverse spline is *not* an inverse, and showing one would defeat the
+one check that catches a warp that is wrong while the numbers look fine.
+
 **Only the angle lock gates real daily sessions.** The registration gate does
 not. If registration comes back at 2.5mm, that is a software problem solved
 with better matching — the photos are still valid and still belong to the
@@ -168,6 +185,14 @@ because a rubric drafted before seeing real high-res skin is made of guesses.
   tiles, which is correct: a crop that renders a lesion must carry its label.
   `assign_labels_to_tiles` gives exactly one owner — **for counting**. Same
   shape as `detections.owned` for the pose overlap band.
+- **Visibility filtering rests on a size bound, and the bound is computable.**
+  `labels_in_tile` drops a label the tile barely shows, which is only safe
+  because a neighbouring tile shows it whole — and that holds only while
+  lesion diameter <= `tile - stride`. `max_safe_lesion_mm()` gives it: 128 px,
+  **4.9 mm at 26 px/mm** for the locked 640/20%. The labeling tool must warn
+  past it (`lesion_size_warning()`). Note the default `min_visible=0.5` prunes
+  corner slivers only — a disc whose centre is inside a tile always has >= half
+  its area there, so pruning edge slivers needs a value above 0.5.
 - **Edge tiles are clamped, never zero-padded.** Every frame would pad on the
   same two edges, so the border correlates with position in frame — exactly the
   spurious signal a single-subject dataset latches onto. Sliced inference must
@@ -180,10 +205,16 @@ because a rubric drafted before seeing real high-res skin is made of guesses.
   `save_split` refuses to overwrite, because a metric with no record of which
   days were held out is worthless.
 - **Control points are held-out ground truth.** Never fit a transform using
-  them — and never **select** with them either: picking which of six methods to
-  report, or which matcher to spline, using control-point error is selection on
-  the test set and biases the gate downward. If you are tempted, stop and say
-  so.
+  them — and never **select** with them either: picking which method of the
+  ladder to report, or which matcher to spline, using control-point error is
+  selection on the test set and biases the gate downward. If you are tempted,
+  stop and say so.
+- **Per-upload QA measures skin, not the fiducial.** The marker is white paper
+  and black ink and is in every frame on purpose — at rig geometry it is ~12%
+  of the photo and its white alone ~6.5%, against a 2% clipping limit. It is
+  masked out before exposure is measured. Counting it would reject every
+  correctly exposed photo and blame the lamp, which teaches Noah to override
+  the verdict, after which the verdict catches nothing.
 - **Log covariates from day one.** They cannot be collected retroactively.
   Six daily 3-option tap rows; regimen change is a dated `regimen_events` row,
   never a tap row, because it is a step function and will drive most of the
@@ -285,6 +316,19 @@ The photos are several hundred high-resolution images of Noah's face.
   request, deliberately before any real image existed. This supersedes the
   earlier "no git remote" rule for CODE. It relaxes nothing about images: no
   photo is ever committed, force-added, or pushed.
+- **The ingest server is LAN-only and must be reachable on a PRIVATE network
+  only.** It binds `0.0.0.0:8000`. No route serves image bytes, but `/health`
+  returns the data-root path, `/recent` returns the capture log, and
+  `/capture`, `/lock-angle`, `/unlock-angle` and `/regimen` are unauthenticated
+  **writes** — anyone on the network can inject images into the dataset or flip
+  the angle gate. The firewall rule is `-Profile Private` for that reason; see
+  `docs/NETWORK_SETUP.md` §1.
+
+  **Open gap as of 2026-09-12, and real photos now exist:** that rule is not
+  installed, the Wi-Fi is classified *Public*, and what lets the phone through
+  is a pair of Windows-auto-created "allow python.exe inbound" rules scoped to
+  Public — so the server is reachable on *any* network the laptop joins. Fix
+  before the next capture session, not "before day 1"; day 1 has happened.
 - Backup goes to an external drive or local folder, never a git host and never
   a cloud service. `scripts\backup_data.ps1`.
 - No image is ever sent to a third-party API. Not for labeling, not for
