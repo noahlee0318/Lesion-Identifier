@@ -151,7 +151,20 @@ tells you to run `facemesh_check`. Tell me and I will run:
    Then you tap the matching **Lock at __°** button, which opens daily capture.
 2. `verify_upload_fidelity.py` + the `/probe` numbers → phase 1 architecture
 3. then you hand-mark control points and I run the registration bake-off
-   → **GO/NO-GO** against median < 1.5 mm, p95 < 3 mm
+   → **GO/NO-GO** against median < 1.5 mm, p95 < 3 mm, on residuals **pooled
+   across every pair**
+
+   **Mark 8–10 points per image, on every calibration frame.** This is the one
+   step where your effort changes what the gate can say. The p95 half of the
+   gate is refused below **20 pooled residuals** — below that the number is
+   just the worst single point wearing a percentile's name, and the verdict
+   comes back INCONCLUSIVE rather than GO. Five sittings at 10 points each is
+   ~40 pooled residuals, which is comfortable. Five sittings at 3 points each
+   is 12, which is not a gate.
+
+   Pick things that are unambiguous on every frame — moles, a scar, a
+   distinctive freckle. A point you have to guess at is worse than one fewer
+   point, because it adds error the method never made.
 4. `lens_compare.py` → main vs 2×
 
 ---

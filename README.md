@@ -38,7 +38,7 @@ Three things, in order of difficulty:
 | # | Question | Gate | Tool |
 |---|---|---|---|
 | a | Does MediaPipe Face Mesh fire reliably with stable landmarks at 60° yaw? | 5/5 detections, cheek/temple anchors stable | `src/facemesh_check.py` |
-| b | Can two photos of the same face on different days be registered accurately enough? | **median < 1.5 mm, p95 < 3 mm** | `src/register.py` |
+| b | Can two photos of the same face on different days be registered accurately enough? | **median < 1.5 mm, p95 < 3 mm**, on residuals *pooled across all pairs* | `src/register.py` |
 | c | Main lens @ ~30 cm or 2× @ ~55 cm? | more detail at the sideburn without losing the nose | `src/lens_compare.py` |
 
 Plus two iOS questions that decide phase 1's architecture — does Safari alter
@@ -130,8 +130,16 @@ python -m src.facemesh_check <DATA_ROOT>\raw\calib
 python -m src.controlpoints <DATA_ROOT>\raw\calib
 
 # (b) the registration bake-off + GO/NO-GO
+#     Gate reads POOLED residuals; the recommendation is the SIMPLEST method
+#     that clears, not the lowest number. p95 is refused below 20 pooled points.
 python -m src.register bakeoff --ref REF.jpg --targets <DATA_ROOT>\raw\calib
 python -m src.register review  --ref REF.jpg --target T.jpg --method tps
+
+# date-based splits — fixed trailing windows (14d test, 14d val) by default,
+# write-once: the file is {name}.{hash}.json and rebuilding a name refuses.
+python -m src.splits --name v1
+python -m src.splits --name v1 --show
+python -m src.splits --name v1 --mode ratio --ratios 0.7 0.15 0.15
 
 # (c) lens comparison
 python -m src.lens_compare --main SHOT_main.jpg --tele SHOT_2x.jpg
@@ -152,7 +160,9 @@ src/
   fiducial.py         printable target, ArUco detection, px/mm
   facemesh_check.py   question (a) — landmarks, pose, occlusion, stability
   controlpoints.py    click tool for ground-truth moles
-  register.py         question (b) — 6-method bake-off, TPS, blink compare
+  register.py         question (b) — 7-method bake-off, TPS, blink compare
+  tiling.py           tile grid, label membership, visibility filter
+  splits.py           date-based train/val/test, write-once
   lens_compare.py     question (c) — cycles/mm per region per lens
   server/
     main.py           FastAPI ingest, plain HTTP, LAN only
@@ -175,11 +185,14 @@ Full list in [CLAUDE.md](CLAUDE.md). The ones that bite hardest:
 - **Never re-encode an image.** The server stores received bytes unmodified —
   no resize, no EXIF strip. SHA-256 per file.
 - **Control points are held-out ground truth.** Never fit a transform using
-  them.
+  them, and never *select* with them — choosing which method to report by
+  control-point error is selection on the test set.
 - **Reject, don't average.** A bad registration is discarded, never blended
   into an atlas.
 - **Split by date, never randomly.** Consecutive days are near-duplicates; a
-  random split leaks badly and produces fake metrics.
+  random split leaks badly and produces fake metrics. Split files are
+  write-once — rebuilding a name refuses rather than destroying the split your
+  last metrics were computed against.
 - **Log covariates from day one.** They cannot be collected retroactively.
 - **Adherence is the #1 risk.** Capture must stay under 60 s.
 

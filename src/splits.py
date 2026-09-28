@@ -32,19 +32,50 @@ the dates either side of the hole are already far apart in time and no
 washout is needed; if capture is dense, three sessions is three days. Only
 the calendar answers "are these two images near-duplicates".
 
+WHERE THE BOUNDARIES GO: FIXED TRAILING WINDOWS, NOT RATIOS
+
+The default is `mode="window"`: the last `test_days` (14) are test, the
+`val_days` (14) before that are val, everything earlier is train, with the
+calendar washout between blocks.
+
+Proportional boundaries were the original rule and are still available as
+`mode="ratio"`, but they are the wrong default here, because the held-out set
+is supposed to answer one fixed question - "how does the detector do on
+recent, unseen days" - and a proportional test set is a different size every
+time it is built. Early on it is three days, which is too thin to measure
+anything and swings wildly with one bad session. A year in it is fifty-five
+days, which is fifty days more than the question needs and fifty days stolen
+from training. A fixed window is the same size forever, always current, and
+every rebuild is comparable to the last.
+
+The cost, stated plainly: for the first weeks train is SMALLER than test.
+That is not a flaw in the rule, it is an honest report that there is not much
+data yet, and NotEnoughDataError covers the part where it would be degenerate.
+
+Under the fixed-window rule a split needs roughly
+
+    14 (test) + 3 (gap) + 14 (val) + 3 (gap) + 1 (train) = 35 calendar days
+
+of capture before it can be built at all. Before that, plan_split raises.
+
 CALIBRATION IMAGES ARE NEVER IN A SPLIT. They are throwaway shots taken
 before the rig was locked, at one pose, on two lenses. `sessions.kind` is
 filtered to 'session' throughout.
+
+SPLIT FILES ARE WRITE-ONCE. A metric is meaningless without the split it was
+computed against, so `save_split` refuses to overwrite an existing split file
+and the filename carries a content hash. See save_split.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sqlite3
 import sys
 from dataclasses import dataclass, field, asdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Sequence
 
@@ -58,13 +89,46 @@ SPLIT_NAMES = ("train", "val", "test")
 DEFAULT_RATIOS = (0.70, 0.15, 0.15)
 DEFAULT_GAP_DAYS = 3
 
+# Fixed trailing windows, in calendar days. Both blocks the same size: they
+# answer the same kind of question and there is no reason for val to be
+# smaller than the thing it is a rehearsal for.
+DEFAULT_TEST_DAYS = 14
+DEFAULT_VAL_DAYS = 14
+
+MODES = ("window", "ratio")
+
 
 def _d(s: str) -> date:
     return datetime.strptime(s, "%Y-%m-%d").date()
 
 
+def min_days_for_window(
+    gap_days: int = DEFAULT_GAP_DAYS,
+    test_days: int = DEFAULT_TEST_DAYS,
+    val_days: int = DEFAULT_VAL_DAYS,
+) -> int:
+    """Calendar span a fixed-window split needs before it can exist at all."""
+    return test_days + gap_days + val_days + gap_days + 1
+
+
 class NotEnoughDataError(RuntimeError):
     """Raised when there are too few dates to split honestly."""
+
+
+class SplitExistsError(FileExistsError):
+    """Raised when writing a split would destroy an existing one."""
+
+
+def _ratios_of(train: Sequence[str], val: Sequence[str], test: Sequence[str]):
+    """Achieved ratios, over the days that landed in a block.
+
+    Washout days are excluded from the denominator so the three numbers sum to
+    one and can be read against the ratios that were requested.
+    """
+    n = len(train) + len(val) + len(test)
+    if n == 0:
+        return (0.0, 0.0, 0.0)
+    return tuple(round(len(b) / n, 4) for b in (train, val, test))
 
 
 @dataclass
@@ -76,42 +140,82 @@ class DatePlan:
     test: list[str] = field(default_factory=list)
     excluded: list[str] = field(default_factory=list)
     gap_days: int = DEFAULT_GAP_DAYS
-    ratios: tuple[float, float, float] = DEFAULT_RATIOS
+    mode: str = "window"
+    # Requested proportions. None under the fixed-window rule, which does not
+    # have any - recording 0.70/0.15/0.15 there would be a claim about the
+    # split that is not true of it.
+    ratios: tuple[float, float, float] | None = None
+    test_days: int | None = DEFAULT_TEST_DAYS
+    val_days: int | None = DEFAULT_VAL_DAYS
+    achieved_ratios: tuple[float, float, float] = field(init=False, default=(0.0, 0.0, 0.0))
+
+    def __post_init__(self) -> None:
+        self.achieved_ratios = _ratios_of(self.train, self.val, self.test)
 
     def as_dict(self) -> dict:
         return asdict(self)
 
 
-def plan_split(
-    dates: Sequence[str],
-    ratios: tuple[float, float, float] = DEFAULT_RATIOS,
-    gap_days: int = DEFAULT_GAP_DAYS,
-) -> DatePlan:
-    """Chronological blocks with a calendar washout between them.
-
-    Boundaries are chosen by proportion of available dates, then the washout
-    is applied by DROPPING dates from the START of the later block. Dropping
-    from the later block rather than the earlier one keeps the maximum amount
-    of training data and preserves "test is the most recent data".
-
-    Raises NotEnoughDataError, loudly and with numbers, rather than returning
-    a degenerate split. For the first couple of weeks of capture this is the
-    expected outcome and the message says so.
-    """
-    if gap_days < 0:
-        raise ValueError(f"gap_days must be >= 0, got {gap_days}")
-    if len(ratios) != 3 or any(r < 0 for r in ratios) or sum(ratios) <= 0:
-        raise ValueError(f"ratios must be three non-negative numbers, got {ratios!r}")
-
-    uniq = sorted(set(dates))
-    for s in uniq:
-        _d(s)                                   # validate format early
+def _too_few(uniq: list[str], why: str, need: str) -> NotEnoughDataError:
+    span = f"{uniq[0]} .. {uniq[-1]}" if uniq else "-"
     n = len(uniq)
-    if n == 0:
-        raise NotEnoughDataError(
-            "no session dates at all. Nothing to split - keep shooting."
-        )
+    return NotEnoughDataError(
+        f"{why}\n"
+        f"  have {n} session date(s) ({span})\n"
+        f"  {need}\n"
+        f"  This is the expected state for the first few weeks of capture. "
+        f"Keep shooting; do not shrink the windows or the gap to force it."
+    )
 
+
+def _plan_window(
+    uniq: list[str], gap_days: int, test_days: int, val_days: int
+) -> DatePlan:
+    """Fixed trailing calendar windows. The default rule - see the docstring."""
+    last = _d(uniq[-1])
+
+    # Boundaries are computed from the CALENDAR, not from how many sessions
+    # happen to fall in each window. A sparse fortnight gives a small test set,
+    # which is the honest answer: there were few sessions in the last 14 days.
+    test_start = last - timedelta(days=test_days - 1)
+    val_end = test_start - timedelta(days=gap_days + 1)
+    val_start = val_end - timedelta(days=val_days - 1)
+    train_end = val_start - timedelta(days=gap_days + 1)
+
+    train = [s for s in uniq if _d(s) <= train_end]
+    val = [s for s in uniq if val_start <= _d(s) <= val_end]
+    test = [s for s in uniq if _d(s) >= test_start]
+    inside = set(train) | set(val) | set(test)
+    excluded = sorted(s for s in uniq if s not in inside)
+
+    empty = [nm for nm, blk in zip(SPLIT_NAMES, (train, val, test)) if not blk]
+    if empty:
+        need_days = min_days_for_window(gap_days, test_days, val_days)
+        span_days = (last - _d(uniq[0])).days + 1
+        raise _too_few(
+            uniq,
+            f"cannot build a fixed-window split ({test_days}d test, {val_days}d val, "
+            f"{gap_days}-day washout): {', '.join(empty)} would be empty.",
+            f"that rule needs about {need_days} calendar days of capture "
+            f"({test_days} + {gap_days} + {val_days} + {gap_days} + 1); "
+            f"the data spans {span_days}.",
+        )
+    return DatePlan(
+        train=train, val=val, test=test, excluded=excluded, gap_days=gap_days,
+        mode="window", ratios=None, test_days=test_days, val_days=val_days,
+    )
+
+
+def _plan_ratio(
+    uniq: list[str], gap_days: int, ratios: tuple[float, float, float]
+) -> DatePlan:
+    """Proportional boundaries, then washout. The explicitly-named alternative.
+
+    Kept because there are legitimate uses - a one-off retrospective split over
+    a finished capture period, where "the last 14 days" is not the question
+    being asked. It is not the default; see the module docstring.
+    """
+    n = len(uniq)
     total = float(sum(ratios))
     r = tuple(x / total for x in ratios)
 
@@ -142,26 +246,65 @@ def plan_split(
 
     empty = [nm for nm, blk in zip(SPLIT_NAMES, (train, val, test)) if not blk]
     if empty:
-        span = f"{uniq[0]} .. {uniq[-1]}"
         need = 1 + (gap_days + 1) + (gap_days + 1)
-        raise NotEnoughDataError(
+        raise _too_few(
+            uniq,
             f"cannot build a {ratios} split with a {gap_days}-day washout: "
-            f"{', '.join(empty)} would be empty.\n"
-            f"  have {n} session date(s) ({span})\n"
-            f"  need roughly {need}+ dates at this gap for a minimal split, "
-            f"and many more for the ratios to mean anything.\n"
-            f"  This is the expected state for the first couple of weeks of "
-            f"capture. Keep shooting; do not lower the gap to force it."
+            f"{', '.join(empty)} would be empty.",
+            f"need roughly {need}+ dates at this gap for a minimal split, "
+            f"and many more for the ratios to mean anything.",
+        )
+    return DatePlan(
+        train=train, val=val, test=test, excluded=sorted(excluded),
+        gap_days=gap_days, mode="ratio", ratios=tuple(ratios),
+        test_days=None, val_days=None,
+    )
+
+
+def plan_split(
+    dates: Sequence[str],
+    ratios: tuple[float, float, float] = DEFAULT_RATIOS,
+    gap_days: int = DEFAULT_GAP_DAYS,
+    mode: str = "window",
+    test_days: int = DEFAULT_TEST_DAYS,
+    val_days: int = DEFAULT_VAL_DAYS,
+) -> DatePlan:
+    """Chronological blocks with a calendar washout between them.
+
+    `mode="window"` (default) puts the last `test_days` in test and the
+    `val_days` before that in val - a fixed-size, always-current held-out set.
+    `mode="ratio"` uses `ratios` instead, which is the older proportional rule;
+    see the module docstring for why it is no longer the default.
+
+    `ratios` is validated whichever mode is in force, so a caller that passes
+    nonsense hears about it rather than having it silently ignored.
+
+    Raises NotEnoughDataError, loudly and with numbers, rather than returning
+    a degenerate split. For the first weeks of capture this is the expected
+    outcome and the message says so.
+    """
+    if mode not in MODES:
+        raise ValueError(f"mode must be one of {MODES}, got {mode!r}")
+    if gap_days < 0:
+        raise ValueError(f"gap_days must be >= 0, got {gap_days}")
+    if len(ratios) != 3 or any(r < 0 for r in ratios) or sum(ratios) <= 0:
+        raise ValueError(f"ratios must be three non-negative numbers, got {ratios!r}")
+    if test_days < 1 or val_days < 1:
+        raise ValueError(
+            f"test_days and val_days must be >= 1, got {test_days} and {val_days}"
         )
 
-    return DatePlan(
-        train=train,
-        val=val,
-        test=test,
-        excluded=sorted(excluded),
-        gap_days=gap_days,
-        ratios=tuple(ratios),
-    )
+    uniq = sorted(set(dates))
+    for s in uniq:
+        _d(s)                                   # validate format early
+    if not uniq:
+        raise NotEnoughDataError(
+            "no session dates at all. Nothing to split - keep shooting."
+        )
+
+    if mode == "window":
+        return _plan_window(uniq, gap_days, test_days, val_days)
+    return _plan_ratio(uniq, gap_days, ratios)
 
 
 # --------------------------------------------------------------------------
@@ -210,16 +353,41 @@ def check_plan(plan: DatePlan) -> None:
 class Split:
     name: str
     created_at: str
-    ratios: tuple[float, float, float]
     gap_days: int
     dates: dict[str, list[str]]
     images: dict[str, list[int]]
     sessions: dict[str, list[int]]
     excluded_dates: list[str]
     counts: dict[str, dict[str, int]]
+    mode: str = "window"
+    # What was ASKED for (ratio mode only) and what was GOT. They differ: a
+    # requested 0.70/0.15/0.15 lands near 0.78/0.11/0.11 once a 3-day washout
+    # has eaten the front of val and test. Recording only the request makes the
+    # file misleading to read six months from now.
+    ratios: tuple[float, float, float] | None = None
+    achieved_ratios: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    test_days: int | None = None
+    val_days: int | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+    def content_hash(self) -> str:
+        """Short hash of everything that defines the split.
+
+        `name` and `created_at` are excluded, so rebuilding an unchanged
+        dataset reproduces the same hash and is recognisable as the same
+        split rather than as a collision.
+        """
+        return content_hash_of(self)
+
+
+def content_hash_of(split: "Split") -> str:
+    payload = split.to_dict()
+    payload.pop("name", None)
+    payload.pop("created_at", None)
+    blob = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:8]
 
 
 def _session_dates(con: sqlite3.Connection) -> list[str]:
@@ -248,14 +416,24 @@ def build_split(
     ratios: tuple[float, float, float] = DEFAULT_RATIOS,
     gap_days: int = DEFAULT_GAP_DAYS,
     persist: bool = True,
+    mode: str = "window",
+    test_days: int = DEFAULT_TEST_DAYS,
+    val_days: int = DEFAULT_VAL_DAYS,
+    force: bool = False,
 ) -> Split:
     """Resolve a split against the database and (by default) write it down.
 
     Persisting is not optional bookkeeping: a metric computed against an
     unrecorded split is not reproducible, and six months from now "0.82
     precision" with no record of which days were held out is worthless.
+
+    Raises SplitExistsError rather than overwriting a split of the same name -
+    see save_split.
     """
-    plan = plan_split(_session_dates(con), ratios, gap_days)
+    plan = plan_split(
+        _session_dates(con), ratios, gap_days,
+        mode=mode, test_days=test_days, val_days=val_days,
+    )
     check_plan(plan)
 
     dates = {"train": plan.train, "val": plan.val, "test": plan.test}
@@ -286,16 +464,20 @@ def build_split(
     split = Split(
         name=name,
         created_at=datetime.now().isoformat(timespec="seconds"),
-        ratios=tuple(ratios),
         gap_days=gap_days,
         dates=dates,
         images=images,
         sessions=sessions,
         excluded_dates=plan.excluded,
         counts=counts,
+        mode=plan.mode,
+        ratios=plan.ratios,
+        achieved_ratios=plan.achieved_ratios,
+        test_days=plan.test_days,
+        val_days=plan.val_days,
     )
     if persist:
-        save_split(split)
+        save_split(split, force=force)
     return split
 
 
@@ -305,28 +487,231 @@ def splits_dir() -> Path:
     return d
 
 
-def save_split(split: Split) -> Path:
-    p = splits_dir() / f"{split.name}.json"
+def split_path(split: Split) -> Path:
+    """Where this split belongs: `{name}.{content hash}.json`.
+
+    The hash in the FILENAME is the point. A name alone can silently mean two
+    different things - "the v1 split" in a metrics log six months from now is
+    only a reference if exactly one file was ever called that. With the hash,
+    a rebuild that changed anything lands on a different filename and cannot
+    be mistaken for the original, and a rebuild that changed nothing lands on
+    the same one and is recognisably the same split.
+    """
+    return splits_dir() / f"{split.name}.{content_hash_of(split)}.json"
+
+
+def existing_splits(name: str) -> list[Path]:
+    """Every file already claiming this split name."""
+    return sorted(splits_dir().glob(f"{name}.*.json"))
+
+
+def _identify(p: Path) -> str:
+    """One line describing a split file, for a message about destroying it."""
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+        c = d.get("counts", {})
+        dates = d.get("dates", {})
+        parts = []
+        for k in SPLIT_NAMES:
+            ds = dates.get(k) or []
+            rng = f"{ds[0]}..{ds[-1]}" if ds else "-"
+            parts.append(f"{k} {c.get(k, {}).get('images', '?')} img over "
+                         f"{c.get(k, {}).get('days', '?')}d ({rng})")
+        return f"{p.name}  created {d.get('created_at', '?')}  " + "; ".join(parts)
+    except Exception:  # noqa: BLE001
+        return f"{p.name}  (unreadable: not valid split JSON)"
+
+
+def save_split(split: Split, force: bool = False) -> Path:
+    """Write a split down. REFUSES to overwrite one that already exists.
+
+    This module exists to make metrics reproducible, and a silent overwrite
+    defeats it with its own default: rebuild `v1` next month with more data
+    and the split last month's numbers were computed against is simply gone,
+    with nothing in the output to say so.
+
+    So: if any file already claims this name, raise SplitExistsError naming
+    what is there and when it was made. Pick a new name - `v2`, or
+    `v1-2026-10` - rather than reusing one.
+
+    `force=True` is the deliberate exception. It prints what it is about to
+    destroy before destroying it.
+
+    Rebuilding an UNCHANGED dataset is not a conflict: the content hash is the
+    same, so it is the same split, and the original file (with its original
+    created_at) is kept and returned.
+    """
+    p = split_path(split)
+    mine = content_hash_of(split)
+
+    if p.exists():
+        try:
+            on_disk = json.loads(p.read_text(encoding="utf-8"))
+            same = _hash_of_dict(on_disk) == mine
+        except Exception:  # noqa: BLE001
+            same = False
+        if same:
+            # Byte-identical content under a different timestamp. Keep the
+            # original created_at - it is the date this split first existed,
+            # which is the useful fact - and adopt it onto the in-memory object
+            # so a report printed from it matches the file it refers to.
+            split.created_at = on_disk.get("created_at", split.created_at)
+            return p
+
+    clashes = [q for q in existing_splits(split.name) if q != p or p.exists()]
+    if clashes and not force:
+        listing = "\n".join("    " + _identify(q) for q in clashes)
+        raise SplitExistsError(
+            f"a split named {split.name!r} already exists and would be replaced:\n"
+            f"{listing}\n"
+            f"  new split would be: {p.name}  "
+            f"({', '.join(f'{k} {split.counts[k]['images']} img' for k in SPLIT_NAMES)})\n"
+            f"\n"
+            f"  Metrics already computed against the existing split refer to THOSE days. "
+            f"Overwriting it makes them unreproducible and there would be nothing left to "
+            f"say so.\n"
+            f"  Pick a new name (--name v2, --name {split.name}-"
+            f"{datetime.now():%Y-%m}), or pass --force if you really mean to destroy it."
+        )
+    if clashes and force:
+        print("--force: DESTROYING these split files:")
+        for q in clashes:
+            print("    " + _identify(q))
+            q.unlink()
+        print(f"  replacing with {p.name}")
+
     p.write_text(json.dumps(split.to_dict(), indent=2), encoding="utf-8")
     return p
 
 
+def _hash_of_dict(d: dict) -> str:
+    payload = dict(d)
+    payload.pop("name", None)
+    payload.pop("created_at", None)
+    blob = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:8]
+
+
+class SplitIntegrityError(ValueError):
+    """A split file on disk does not satisfy the invariants it was built with."""
+
+
+def validate_split(split: Split) -> None:
+    """Re-run every invariant against a split that came from disk.
+
+    `load_split` used to parse JSON and hand it back unchecked. A hand-edited
+    or truncated file would then produce metrics that look normal and are
+    wrong - the single failure this module exists to prevent, arriving through
+    the back door. Checking on load costs microseconds.
+    """
+    for k in SPLIT_NAMES:
+        if k not in split.dates or k not in split.images or k not in split.counts:
+            raise SplitIntegrityError(f"split {split.name!r} has no {k!r} block")
+
+    plan = DatePlan(
+        train=list(split.dates["train"]),
+        val=list(split.dates["val"]),
+        test=list(split.dates["test"]),
+        excluded=list(split.excluded_dates),
+        gap_days=split.gap_days,
+        mode=split.mode,
+        ratios=split.ratios,
+        test_days=split.test_days,
+        val_days=split.val_days,
+    )
+    try:
+        check_plan(plan)
+    except AssertionError as e:
+        raise SplitIntegrityError(
+            f"split {split.name!r} violates a split invariant: {e}\n"
+            "  It was either hand-edited or written by a different version of "
+            "this module. Do not compute metrics against it - rebuild it."
+        ) from e
+
+    # Images and sessions must be disjoint across blocks.
+    for field_name in ("images", "sessions"):
+        table = getattr(split, field_name)
+        seen: dict[int, str] = {}
+        for k in SPLIT_NAMES:
+            for i in table[k]:
+                if i in seen:
+                    raise SplitIntegrityError(
+                        f"{field_name[:-1]} {i} is in both {seen[i]} and {k} "
+                        f"in split {split.name!r}"
+                    )
+                seen[i] = k
+
+    # Counts must describe the lists they claim to describe.
+    for k in SPLIT_NAMES:
+        for key, seq in (("days", split.dates[k]), ("images", split.images[k]),
+                         ("sessions", split.sessions[k])):
+            if split.counts[k].get(key) != len(seq):
+                raise SplitIntegrityError(
+                    f"split {split.name!r}: counts[{k}][{key}] says "
+                    f"{split.counts[k].get(key)} but the list has {len(seq)}"
+                )
+
+    recomputed = _ratios_of(split.dates["train"], split.dates["val"], split.dates["test"])
+    if tuple(split.achieved_ratios) != recomputed:
+        raise SplitIntegrityError(
+            f"split {split.name!r}: achieved_ratios says {tuple(split.achieved_ratios)} "
+            f"but the day counts give {recomputed}"
+        )
+
+
 def load_split(name: str) -> Split:
-    p = splits_dir() / f"{name}.json"
-    if not p.exists():
+    """Load a split by name or by full stem, and VALIDATE it before returning.
+
+    `name` may be the plain name (`v1`) or the full stem including its content
+    hash (`v1.a3f81c2d`). A plain name that matches several files is an error
+    rather than a guess - that ambiguity is exactly what the hash exists to
+    surface.
+    """
+    direct = splits_dir() / f"{name}.json"
+    matches = existing_splits(name)
+    if direct.exists():
+        p = direct
+    elif len(matches) == 1:
+        p = matches[0]
+    elif not matches:
         raise FileNotFoundError(
-            f"no split named {name!r} at {p}. Build it with:  "
+            f"no split named {name!r} in {splits_dir()}. Build it with:  "
             f"python -m src.splits --name {name}"
         )
+    else:
+        listing = "\n".join("    " + _identify(q) for q in matches)
+        raise ValueError(
+            f"{len(matches)} files claim the split name {name!r}:\n{listing}\n"
+            f"  Load one by its full stem, e.g. "
+            f"load_split({matches[0].stem!r})."
+        )
+
     d = json.loads(p.read_text(encoding="utf-8"))
-    d["ratios"] = tuple(d["ratios"])
-    return Split(**d)
+    if d.get("ratios") is not None:
+        d["ratios"] = tuple(d["ratios"])
+    d["achieved_ratios"] = tuple(d.get("achieved_ratios", (0.0, 0.0, 0.0)))
+    try:
+        split = Split(**d)
+    except TypeError as e:
+        raise SplitIntegrityError(
+            f"{p.name} is not a split file this version can read: {e}"
+        ) from e
+    validate_split(split)
+    return split
 
 
 def format_report(split: Split) -> str:
+    if split.mode == "window":
+        rule = (f"fixed trailing windows: {split.test_days}d test, "
+                f"{split.val_days}d val")
+    else:
+        rule = f"requested ratios {split.ratios}"
     L = [
-        f"split '{split.name}'   created {split.created_at}",
-        f"ratios {split.ratios}   washout {split.gap_days} calendar day(s)",
+        f"split '{split.name}'   created {split.created_at}   "
+        f"[{content_hash_of(split)}]",
+        f"{rule}   washout {split.gap_days} calendar day(s)",
+        f"achieved {split.achieved_ratios[0]:.2f} / {split.achieved_ratios[1]:.2f} "
+        f"/ {split.achieved_ratios[2]:.2f}  (by day count, washout days excluded)",
         "",
         f"{'':<6} {'days':>5} {'sessions':>9} {'images':>7}   date range",
         "-" * 62,
@@ -345,6 +730,12 @@ def format_report(split: Split) -> str:
         L.append("  " + ", ".join(split.excluded_dates))
     L.append("")
     L.append("Train is the past, test is the future. Gap days belong to no split.")
+    if split.mode == "window" and split.counts["train"]["days"] < split.counts["test"]["days"]:
+        L.append(
+            f"NOTE: train ({split.counts['train']['days']}d) is smaller than test "
+            f"({split.counts['test']['days']}d). That is the fixed-window rule "
+            f"reporting honestly that there is not much data yet, not a bug."
+        )
     return "\n".join(L)
 
 
@@ -353,12 +744,21 @@ def format_report(split: Split) -> str:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="date-based train/val/test split")
     ap.add_argument("--name", default="v1")
+    ap.add_argument("--mode", choices=MODES, default="window",
+                    help="window: fixed trailing calendar windows (default). "
+                         "ratio: proportional boundaries.")
+    ap.add_argument("--test-days", type=int, default=DEFAULT_TEST_DAYS,
+                    help="window mode: calendar days in the test block")
+    ap.add_argument("--val-days", type=int, default=DEFAULT_VAL_DAYS,
+                    help="window mode: calendar days in the val block")
     ap.add_argument("--ratios", type=float, nargs=3, default=list(DEFAULT_RATIOS),
-                    metavar=("TRAIN", "VAL", "TEST"))
+                    metavar=("TRAIN", "VAL", "TEST"), help="ratio mode only")
     ap.add_argument("--gap", type=int, default=DEFAULT_GAP_DAYS,
                     help="calendar washout days between blocks")
     ap.add_argument("--show", action="store_true", help="load and print an existing split")
     ap.add_argument("--dry-run", action="store_true", help="do not write the json")
+    ap.add_argument("--force", action="store_true",
+                    help="destroy an existing split of this name (prints what it destroys)")
     a = ap.parse_args(argv)
 
     if a.show:
@@ -370,15 +770,20 @@ def main(argv: list[str] | None = None) -> int:
     con = _db.connect()
     try:
         split = build_split(
-            con, a.name, tuple(a.ratios), a.gap, persist=not a.dry_run
+            con, a.name, tuple(a.ratios), a.gap, persist=not a.dry_run,
+            mode=a.mode, test_days=a.test_days, val_days=a.val_days, force=a.force,
         )
     except NotEnoughDataError as e:
         print("NOT ENOUGH DATA\n")
         print(e)
         return 2
+    except SplitExistsError as e:
+        print("REFUSING TO OVERWRITE\n")
+        print(e)
+        return 3
     print(format_report(split))
     if not a.dry_run:
-        print(f"\nwrote {splits_dir() / (a.name + '.json')}")
+        print(f"\nwrote {split_path(split)}")
     return 0
 
 
