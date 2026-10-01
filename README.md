@@ -102,6 +102,11 @@ Prints the LAN URL and a QR code. Open it on the phone, attach the photos
 from your camera roll, answer the tap rows, upload. Per-image QA comes back
 immediately so a bad frame gets reshot in the same sitting.
 
+The upload page now has side-by-side **Today** and **Yesterday** cards under
+**Acne spots detected**, ready for easy daily comparison. These are UI
+placeholders: both show **“Not available yet”** until automatic spot detection
+is built and connected. They do not report actual counts yet.
+
 To make it always-on (run once, as administrator):
 
 ```powershell
