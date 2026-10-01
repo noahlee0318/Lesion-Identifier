@@ -20,6 +20,15 @@
   h1{margin:0; font-size:17px; letter-spacing:.2px}
   .sub{color:var(--dim); font-size:12px; margin-top:3px}
   main{padding:14px 14px 0}
+  .spot-counts{display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px; margin:0 0 10px}
+  .spot-count{padding:12px; background:var(--panel2); border:1px solid var(--line);
+    border-radius:9px; min-width:0}
+  .spot-count dt{font-size:14px; font-weight:600}
+  .spot-count dd{margin:8px 0 0}
+  .spot-count .count{display:block; font-size:30px; line-height:1.2;
+    font-weight:700; font-variant-numeric:tabular-nums}
+  .spot-count .pending{display:block; margin-top:5px; color:var(--dim); font-size:12px}
   section{background:var(--panel); border:1px solid var(--line); border-radius:12px;
     padding:13px; margin-bottom:13px}
   h2{margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.08em;
@@ -126,6 +135,24 @@
 </header>
 
 <main>
+  <!-- Placeholder only: connect these counts when spot detection is available. -->
+  <section aria-labelledby="spotCountsHeading">
+    <h2 id="spotCountsHeading">Acne spots detected</h2>
+    <dl class="spot-counts">
+      <div class="spot-count">
+        <dt>Today</dt>
+        <dd><span id="spotsToday" class="count" aria-hidden="true">—</span>
+          <span class="pending">Not available yet</span></dd>
+      </div>
+      <div class="spot-count">
+        <dt>Yesterday</dt>
+        <dd><span id="spotsYesterday" class="count" aria-hidden="true">—</span>
+          <span class="pending">Not available yet</span></dd>
+      </div>
+    </dl>
+    <div class="muted">Automatic spot counting is coming later. Your daily counts will appear here.</div>
+  </section>
+
   <div class="modes">
     <button id="mSession" aria-pressed="true"  onclick="setMode('session')">Daily session</button>
     <button id="mCalib"   aria-pressed="false" onclick="setMode('calib')">Phase 0 calibration</button>
