@@ -1,5 +1,8 @@
 # Lesion Atlas
 
+Read the [project summary and how everything works](docs/PROJECT_SUMMARY.md)
+for the current implementation, architecture, verification, and remaining work.
+
 A personal longitudinal acne-tracking system. Daily 3-pose facial capture →
 detect acne lesions across 6 face regions → hold lesion identity across days
 in a fixed anatomical coordinate frame → visualise count and spatial
