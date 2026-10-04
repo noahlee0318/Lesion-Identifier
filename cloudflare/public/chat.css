@@ -1,4 +1,7 @@
 :root{color-scheme:dark;--bg:#12151a;--panel:#1b2029;--line:#354153;--ink:#e8edf4;--dim:#a8b4c5;--accent:#4da3ff}
+.project-links{display:flex;flex-wrap:wrap;gap:12px 18px;margin-bottom:22px;font-size:13px}
+.demo-status{padding:14px 16px;margin:18px 0;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;background:var(--panel)}
+.demo-status strong{font-size:13px;color:var(--ink)}.demo-status p{font-size:13px;color:var(--dim);margin:8px 0 0}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,sans-serif}
 main{max-width:740px;margin:auto;padding:24px 18px}h1{font-size:clamp(25px,6vw,36px);line-height:1.2;margin:8px 0}
 p{margin:10px 0}.eyebrow{color:var(--accent);font-size:12px;letter-spacing:.12em;font-weight:700}

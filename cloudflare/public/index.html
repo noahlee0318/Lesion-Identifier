@@ -4,15 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lesion Atlas — skin &amp; skincare assistant</title>
+  <meta name="description" content="An evolving AI/ML project: a live skincare assistant, private annotation workspace, and experimental local model training.">
   <link rel="stylesheet" href="./chat.css">
   <script src="./chat.js" defer></script>
 </head>
 <body>
 <main id="assistant">
-  <nav><a href="./personal.html">Personal model workspace →</a></nav>
+  <nav class="project-links" aria-label="Project links"><a href="./personal.html">Personal workspace</a><a href="https://github.com/noahlee0318/Lesion-Identifier" target="_blank" rel="noopener noreferrer">GitHub</a><a href="https://github.com/noahlee0318/Lesion-Identifier/blob/main/docs/PROJECT_SUMMARY.md" target="_blank" rel="noopener noreferrer">How it works</a></nav>
   <header><span class="eyebrow">LESION ATLAS</span><h1>Ask about your skin.</h1>
     <p>Help with acne, skincare, and taking useful tracking photos.</p></header>
-  <p class="privacy">Text-only chat. Your messages go to Cloudflare AI. Photos stay on your laptop. Avoid sharing identifying or sensitive details.</p>
+  <aside class="demo-status" aria-label="Demo status"><strong>Live demo · evolving AI/ML project</strong><p>Try the assistant below—no account or photos needed. The personal workspace supports local photo labeling; its model trains separately in Python. Automatic acne counts and tracking are not available yet.</p></aside>
+  <p class="privacy">Text-only chat. Your messages go to Cloudflare AI. Photos stay on your device. Avoid sharing identifying or sensitive details. Free AI usage is shared; replies may be temporarily unavailable.</p>
   <p id="connection" role="status">Checking chat availability…</p>
   <div class="suggestions" aria-label="Suggested questions">
     <button type="button">How do I take a usable photo?</button>

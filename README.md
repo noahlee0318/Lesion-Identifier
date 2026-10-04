@@ -1,19 +1,24 @@
 # Lesion Atlas
 
+[Live Demo](https://lesion-atlas-chat.noahlee0318.workers.dev) ·
+[Personal Workspace](https://lesion-atlas-chat.noahlee0318.workers.dev/personal.html) ·
+[GitHub](https://github.com/noahlee0318/Lesion-Identifier)
+
 Read the [project summary and how everything works](docs/PROJECT_SUMMARY.md)
 for the current implementation, architecture, verification, and remaining work.
 
-A personal longitudinal acne-tracking system. Daily 3-pose facial capture →
-detect acne lesions across 6 face regions → hold lesion identity across days
-in a fixed anatomical coordinate frame → visualise count and spatial
-distribution change over months.
+An evolving AI/ML skincare project with a deployed Cloudflare chatbot, private
+browser-local photo annotation, and an experimental Python CNN training pipeline.
+The longer-term goal is calibrated acne detection and tracking across days;
+automatic counts and longitudinal tracking are not implemented yet.
 
 The original research workflow uses one Windows laptop and an iPhone 15.
 The new personal-model workspace supports separate browser-local datasets.
 **Photos stay on the user's device.** Only typed chatbot text goes to Cloudflare.
 
-> **Status: phase 0 (spike). Tooling is built and tested against synthetic
-> fixtures. Waiting on real calibration photos.**
+> **Status: chatbot and dataset workspace deployed; personal ML baseline experimental.**
+> No validated real-skin accuracy claim. Browser-workspace interactive checks
+> remain pending. The original registration research is still in phase 0.
 
 ## Personal ML structure
 

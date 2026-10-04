@@ -4,8 +4,9 @@
 <title>Lesion Atlas — personal model workspace</title><link rel="stylesheet" href="./chat.css">
 <link rel="stylesheet" href="./personal.css"><script type="module" src="./personal.js"></script></head>
 <body><main>
-<a href="/">← Home</a><header><span class="eyebrow">PERSONAL MODEL WORKSPACE</span><h1>Your photos. Your dataset.</h1>
+<nav class="project-links" aria-label="Project links"><a href="/">← Home</a><a href="https://github.com/noahlee0318/Lesion-Identifier" target="_blank" rel="noopener noreferrer">GitHub</a><a href="https://github.com/noahlee0318/Lesion-Identifier/blob/main/docs/PERSONAL_ML.md" target="_blank" rel="noopener noreferrer">ML workflow</a></nav><header><span class="eyebrow">PERSONAL MODEL WORKSPACE</span><h1>Your photos. Your dataset.</h1>
 <p>Prepare a model for your own skin. Scale calibration helps measure photos; reviewed labels teach the model.</p></header>
+<aside class="demo-status" aria-label="Workspace status"><strong>Experimental dataset workspace</strong><p>You can explore without adding photos. This page prepares data; it does not automatically train a model or detect acne. Training runs locally in Python, and accuracy on real skin has not been established. Interactive browser verification is still pending.</p></aside>
 <p class="privacy">Photos and labels stay in this browser on this device. Nothing here is sent to the chatbot or Cloudflare. Clearing browser data can erase your work. Export a local backup regularly; avoid cloud-synced folders. Profiles organize data; they are not password-protected accounts.</p>
 <p id="error" role="alert"></p>
 <section><h2>1 · Choose a local profile</h2><label for="profiles">Profile</label><select id="profiles"></select>
