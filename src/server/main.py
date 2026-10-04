@@ -60,6 +60,8 @@ def setup_logging(verbose: bool = False) -> None:
 
 
 app = FastAPI(title="Lesion Atlas ingest", version=PAGE_VERSION)
+from src.server.chat import install as install_chat
+install_chat(app)
 _con = None
 
 

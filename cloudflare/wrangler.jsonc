@@ -1,0 +1,10 @@
+{
+  "name": "lesion-atlas-chat",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-03",
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
+  "ai": { "binding": "AI" },
+  "vars": { "AI_MODEL": "@cf/meta/llama-3.1-8b-instruct-fp8" },
+  "ratelimits": [{ "name": "CHAT_LIMIT", "namespace_id": "10031", "simple": { "limit": 8, "period": 60 } }],
+  "observability": { "enabled": false }
+}

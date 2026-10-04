@@ -12,7 +12,8 @@ in a fixed anatomical coordinate frame -> visualize count and spatial
 distribution change over months.
 
 Single subject (Noah). Runs entirely on a Windows 11 Lenovo LOQ with an
-NVIDIA GPU. Capture device is an iPhone 15. Nothing leaves the laptop.
+NVIDIA GPU. Capture device is an iPhone 15. Photos stay local. The optional
+Cloudflare chatbot sends explicitly typed text and recent replies to Workers AI.
 
 **Current state: phase 0 tooling built and verified against synthetic
 fixtures. Blocked on real calibration photos.** See `README.md` for commands
@@ -165,6 +166,20 @@ Daily capture is not a phase. It starts on day 3 of week 1 and never stops.
 - **Ask before adding any dependency not already in `requirements.txt`.**
 
 ## Privacy
+
+### Text-only AI exception (2026-10-03)
+
+The user authorized a Cloudflare-hosted chatbot for project help and general
+acne/skincare questions. See `docs/AI_CHATBOT.md`. Only typed chat messages and
+recent replies may leave the device; never attach photos, labels, database
+records, filenames, or tracking history automatically. No image/model vision
+API, cloud photo upload, or public tunnel to the ingest server. Cloudflare
+deploys only the Worker and `cloudflare/public` assets. Keep secrets out of Git.
+The Today/Yesterday spot cards are placeholders; AI must not invent counts.
+Use plain English for errors and advice. General education only, no diagnosis
+or prescribing. Cloudflare setup and live-model checks are distinct from mocked
+tests; do not claim deployment or live replies until verified. No paid upgrade
+without the user's authorization.
 
 The photos are several hundred high-resolution images of Noah's face.
 

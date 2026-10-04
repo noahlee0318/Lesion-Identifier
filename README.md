@@ -5,7 +5,7 @@ detect acne lesions across 6 face regions → hold lesion identity across days
 in a fixed anatomical coordinate frame → visualise count and spatial
 distribution change over months.
 
-Single subject. Runs entirely on one Windows 11 laptop with an NVIDIA GPU.
+Single subject. Photo processing runs on one Windows 11 laptop with an NVIDIA GPU.
 Capture device is an iPhone 15. **No image ever leaves the machine.**
 
 > **Status: phase 0 (spike). Tooling is built and tested against synthetic
@@ -106,6 +106,19 @@ The upload page now has side-by-side **Today** and **Yesterday** cards under
 **Acne spots detected**, ready for easy daily comparison. These are UI
 placeholders: both show **“Not available yet”** until automatic spot detection
 is built and connected. They do not report actual counts yet.
+
+### Acne & skincare chatbot
+
+Choose **Open chat** on the upload page for questions about this project,
+photo setup, acne, skincare ingredients, and routines. The text-only assistant
+uses **Cloudflare Workers AI**. Photos and the tracking database stay local;
+only messages you type and recent chat replies go to Cloudflare. Chat history
+stays in page memory and clears on reload. It cannot see your photos or counts.
+
+The code is ready for Cloudflare setup; replies require a deployed Worker and
+a private chat access code. The page says **AI setup pending** until configured.
+See [AI implementation and setup](docs/AI_CHATBOT.md) for deployment, local
+connection, free-tier limits, privacy, and how the assistant works.
 
 To make it always-on (run once, as administrator):
 

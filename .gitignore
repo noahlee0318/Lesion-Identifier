@@ -91,6 +91,9 @@ desktop.ini
 
 # ---- secrets / local config --------------------------------------------
 .env
+.dev.vars
+.wrangler/
+node_modules/
 .env.*
 *.local
 secrets.json
