@@ -23,20 +23,18 @@ def service_url():
     return url
 
 
-def relay(path, payload=None, authorization=''):
+def relay(path, payload=None):
     base = service_url()
     if not base:
         return {'detail': 'Chat is not connected yet. Set CHAT_SERVICE_URL to your Cloudflare chatbot address.'}, 503
     headers = {'Content-Type': 'application/json'}
-    if payload is not None:
-        headers['Authorization'] = authorization
     req = URLRequest(base + path, data=payload, headers=headers)
     try:
         with urlopen(req, timeout=35) as response:
             result = json.loads(response.read(64000))
             return result, response.status
     except HTTPError as error:
-        messages = {401:'Enter the correct chat access code.', 429:'Chat is busy. Wait a minute and try again.',
+        messages = {429:'Chat is busy. Wait a minute and try again.',
                     400:'Use a short text question. No images or attachments.', 413:'That message is too long.'}
         return {'detail': messages.get(error.code, 'AI is unavailable right now. Check Cloudflare setup or try again later.')}, error.code if error.code in messages else 503
     except (URLError, TimeoutError, ValueError, OSError):
@@ -77,7 +75,7 @@ async def chat(request: Request):
             raise ValueError()
     except (ValueError, KeyError, TypeError):
         return JSONResponse({'detail':'Use a short text question. Images and attachments are not supported.'}, status_code=400)
-    data, code = await run_in_threadpool(relay, '/api/chat', json.dumps(body).encode(), request.headers.get('authorization', ''))
+    data, code = await run_in_threadpool(relay, '/api/chat', json.dumps(body).encode())
     return JSONResponse(data, status_code=code, headers={'Cache-Control':'no-store'})
 
 

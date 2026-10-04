@@ -115,8 +115,8 @@ uses **Cloudflare Workers AI**. Photos and the tracking database stay local;
 only messages you type and recent chat replies go to Cloudflare. Chat history
 stays in page memory and clears on reload. It cannot see your photos or counts.
 
-The code is ready for Cloudflare setup; replies require a deployed Worker and
-a private chat access code. The page says **AI setup pending** until configured.
+The code is ready for Cloudflare setup; replies require a deployed Worker, with
+no password or access code. The page says **AI setup pending** until configured.
 See [AI implementation and setup](docs/AI_CHATBOT.md) for deployment, local
 connection, free-tier limits, privacy, and how the assistant works.
 

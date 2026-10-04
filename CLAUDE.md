@@ -179,7 +179,9 @@ The Today/Yesterday spot cards are placeholders; AI must not invent counts.
 Use plain English for errors and advice. General education only, no diagnosis
 or prescribing. Cloudflare setup and live-model checks are distinct from mocked
 tests; do not claim deployment or live replies until verified. No paid upgrade
-without the user's authorization.
+without the user's authorization. The user explicitly chose public chat with
+no password/access code and accepts the risk of exhausting the free allowance.
+Keep request limits; do not reintroduce a login requirement unasked.
 
 The photos are several hundred high-resolution images of Noah's face.
 

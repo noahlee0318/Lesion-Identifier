@@ -23,13 +23,11 @@ export default {
     const path = new URL(request.url).pathname;
     if (!path.startsWith('/api/')) return env.ASSETS.fetch(request);
     if (path === '/api/chat/status' && request.method === 'GET')
-      return json({ready: Boolean(env.AI && env.CHAT_ACCESS_KEY && env.CHAT_LIMIT)});
+      return json({ready: Boolean(env.AI && env.CHAT_LIMIT)});
     if (path !== '/api/chat' || request.method !== 'POST') return json({detail:'Not found.'}, 404);
     const origin = request.headers.get('Origin');
     if (origin && origin !== new URL(request.url).origin) return json({detail:'Open chat on this website.'}, 403);
-    if (!env.AI || !env.CHAT_ACCESS_KEY || !env.CHAT_LIMIT) return json({detail:'Chat is not connected yet. Finish the Cloudflare setup first.'}, 503);
-    if (request.headers.get('Authorization') !== `Bearer ${env.CHAT_ACCESS_KEY}`)
-      return json({detail:'Enter the chat access code to continue.'}, 401);
+    if (!env.AI || !env.CHAT_LIMIT) return json({detail:'Chat is not connected yet. Finish the Cloudflare setup first.'}, 503);
     const {success} = await env.CHAT_LIMIT.limit({key:'lesion-atlas-chat'});
     if (!success) return json({detail:'Chat is busy. Wait a minute and try again.'}, 429);
     if (!(request.headers.get('Content-Type') || '').startsWith('application/json'))
