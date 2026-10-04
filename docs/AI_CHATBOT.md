@@ -4,6 +4,26 @@ The assistant answers questions about using Lesion Atlas, taking tracking
 photos, acne, skincare ingredients, and routines. It uses Cloudflare Workers AI.
 It cannot examine photos, access the tracking database, or count lesions.
 
+## Deployment status
+
+Live service: https://lesion-atlas-chat.noahlee0318.workers.dev
+
+The initial deployment succeeded with version
+`fb41da58-f44f-464d-8f5a-cd449ebdcc3f`. Four generic live requests returned
+answers: unavailable spot counts, a skincare routine, an unrelated coding
+request, and a diagnosis request. The model acknowledged unavailable counts,
+declined coding, and declined diagnosis. These are smoke checks, not a medical
+accuracy evaluation or a guarantee of future model behavior.
+
+The Windows user environment now has `CHAT_SERVICE_URL` set to this service.
+The local preview at `http://127.0.0.1:8012/` was restarted with that setting.
+Final browser verification of the connected home page remains pending because
+the browser approval check was blocked. Existing shells and background services
+may need restarting to inherit the saved user environment.
+
+Only the chat assets and Worker were deployed. The local upload homepage,
+photo storage, and database were not published to Cloudflare.
+
 ## Architecture
 
 ```text
