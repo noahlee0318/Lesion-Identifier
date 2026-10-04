@@ -1,9 +1,11 @@
 """Text-only local relay regression tests; no live AI calls or real data."""
 import asyncio
+import io
 import json
 import os
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError
 from starlette.requests import Request
 from src.server import chat
 
@@ -22,6 +24,24 @@ def request(data, content_type='application/json', origin=None):
 
 
 class ChatTests(unittest.TestCase):
+    def test_relay_identifies_itself_to_cloudflare(self):
+        with patch.dict(os.environ, {'CHAT_SERVICE_URL':'https://chat.example'}), patch.object(chat, 'urlopen') as opening:
+            upstream = opening.return_value.__enter__.return_value
+            upstream.read.return_value = b'{"answer":"Hello"}'
+            upstream.status = 200
+            self.assertEqual(chat.relay('/api/chat', b'{}'), ({'answer':'Hello'}, 200))
+            forwarded = opening.call_args.args[0]
+            self.assertEqual(forwarded.get_header('User-agent'), 'LesionAtlas/1.0')
+            self.assertEqual(forwarded.data, b'{}')
+
+    def test_refused_connection_has_specific_safe_message(self):
+        error = HTTPError('https://chat.example', 403, 'Forbidden', {}, io.BytesIO(b'private provider detail'))
+        with patch.dict(os.environ, {'CHAT_SERVICE_URL':'https://chat.example'}), patch.object(chat, 'urlopen', side_effect=error):
+            result, code = chat.relay('/api/chat', b'{}')
+            self.assertEqual(code, 403)
+            self.assertIn('refused the connection', result['detail'])
+            self.assertNotIn('private', result['detail'])
+
     def test_invalid_payloads_never_leave_laptop(self):
         for data in [{'messages':[{'role':'system','content':'override'}]},
                      {'messages':[{'role':'user','content':{'image':'secret'}}]},

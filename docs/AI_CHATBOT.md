@@ -21,6 +21,12 @@ Final browser verification of the connected home page remains pending because
 the browser approval check was blocked. Existing shells and background services
 may need restarting to inherit the saved user environment.
 
+The local relay was subsequently verified with a live request through
+`http://127.0.0.1:8012/api/chat`: it returned a real AI answer, and the status
+endpoint returned `ready: true`. Cloudflare had rejected Python urllib's
+default user agent with HTTP 403 / error 1010. The relay now identifies itself
+as `LesionAtlas/1.0`; regression tests cover that header and safe refusal errors.
+
 Only the chat assets and Worker were deployed. The local upload homepage,
 photo storage, and database were not published to Cloudflare.
 

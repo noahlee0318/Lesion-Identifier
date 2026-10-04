@@ -27,14 +27,17 @@ def relay(path, payload=None):
     base = service_url()
     if not base:
         return {'detail': 'Chat is not connected yet. Set CHAT_SERVICE_URL to your Cloudflare chatbot address.'}, 503
-    headers = {'Content-Type': 'application/json'}
+    # Cloudflare rejects urllib's default user agent (403/1010). Identify our
+    # actual client explicitly, without impersonating a browser.
+    headers = {'Content-Type': 'application/json', 'User-Agent': 'LesionAtlas/1.0'}
     req = URLRequest(base + path, data=payload, headers=headers)
     try:
         with urlopen(req, timeout=35) as response:
             result = json.loads(response.read(64000))
             return result, response.status
     except HTTPError as error:
-        messages = {429:'Chat is busy. Wait a minute and try again.',
+        messages = {403:'The AI service refused the connection. The website connection needs checking.',
+                    429:'Chat is busy. Wait a minute and try again.',
                     400:'Use a short text question. No images or attachments.', 413:'That message is too long.'}
         return {'detail': messages.get(error.code, 'AI is unavailable right now. Check Cloudflare setup or try again later.')}, error.code if error.code in messages else 503
     except (URLError, TimeoutError, ValueError, OSError):
