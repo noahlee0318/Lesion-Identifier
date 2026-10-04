@@ -1,4 +1,5 @@
-const $ = id => document.getElementById(id);
+const assistant = document.getElementById('assistant');
+const $ = id => assistant.querySelector(`#${id}`);
 let history = [];
 let busy = false;
 function addMessage(role, content) {
@@ -14,7 +15,7 @@ async function status() {
     $('connection').textContent = data.ready ? 'AI connected · enter your access code to chat' : 'AI setup pending · connect Cloudflare to enable replies';
   } catch { $('connection').textContent = 'Cannot reach chat right now. Try reloading.'; }
 }
-document.querySelectorAll('.suggestions button').forEach(button => button.addEventListener('click', () => {
+assistant.querySelectorAll('.suggestions button').forEach(button => button.addEventListener('click', () => {
   $('question').value = button.textContent; $('question').focus();
 }));
 $('clear').addEventListener('click', () => {

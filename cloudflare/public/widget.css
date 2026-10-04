@@ -1,0 +1,19 @@
+/* Home-page chat styles are scoped so capture controls keep their appearance. */
+#assistant .privacy,#assistant footer,#assistant small{color:var(--dim);font-size:12px}
+#assistant #connection{color:var(--accent);font-size:12px}
+#assistant label,#assistant small{display:block;margin:8px 0}
+#assistant input,#assistant textarea{width:100%;padding:12px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:9px;font:inherit;font-size:16px}
+#assistant textarea{resize:vertical}
+#assistant button{padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--ink);font:inherit;cursor:pointer}
+#assistant button:disabled{opacity:.5;cursor:wait}
+#assistant .suggestions,#assistant .actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+#assistant .suggestions button{font-size:12px;text-align:left}
+#assistant .conversation{max-height:320px;overflow:auto;overflow-wrap:anywhere;border-block:1px solid var(--line);padding:8px 0;margin-bottom:12px}
+#assistant .welcome{color:var(--dim);font-size:13px}
+#assistant .message{padding:12px;margin:8px 0;background:var(--panel2);border-radius:9px;white-space:pre-wrap}
+#assistant .message.user{margin-left:20px;background:#1b3047}
+#assistant .message strong{display:block;color:var(--accent);font-size:12px;margin-bottom:5px}
+#assistant #send{background:var(--accent);color:#06101c;font-weight:600}
+#assistant #chatError{color:#ffb7af;font-size:13px}
+#assistant a{color:var(--accent)}
+#assistant :is(button,a,summary,input,textarea):focus-visible{outline:2px solid var(--accent);outline-offset:3px}

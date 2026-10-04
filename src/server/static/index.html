@@ -124,6 +124,8 @@
   .kv:last-child{border-bottom:0}
   .kv b{font-weight:600}
 </style>
+<link rel="stylesheet" href="/chat/widget.css">
+<script type="module" src="/chat/chat.js"></script>
 </head>
 <body>
 
@@ -158,11 +160,36 @@
     <button id="mCalib"   aria-pressed="false" onclick="setMode('calib')">Phase 0 calibration</button>
   </div>
 
-  <section aria-labelledby="chatHeading">
+  <section id="assistant" aria-labelledby="chatHeading">
     <h2 id="chatHeading">Acne &amp; skincare assistant</h2>
-    <p class="muted">Ask about skincare, photo setup, or using Lesion Atlas.
-      Text goes to Cloudflare AI; your photos stay on your laptop.</p>
-    <a href="/chat/" style="color:var(--accent)">Open chat →</a>
+    <p class="privacy">Text-only chat. Your messages go to Cloudflare AI. Photos stay on your laptop. Avoid sharing identifying or sensitive details.</p>
+  <p id="connection" role="status">Checking chat availability…</p>
+  <details id="access"><summary>Chat access code</summary>
+    <label for="accessCode">Enter the private code you set up for this chatbot.</label>
+    <input id="accessCode" type="password" autocomplete="off" maxlength="256" placeholder="Access code">
+    <small>The code stays in this tab and is cleared when you reload.</small>
+  </details>
+  <div class="suggestions" aria-label="Suggested questions">
+    <button type="button">How do I take a usable photo?</button>
+    <button type="button">What is a gentle skincare routine?</button>
+    <button type="button">Why are my spot counts unavailable?</button>
+  </div>
+  <div class="conversation" id="conversation" role="log" aria-live="polite" aria-label="Chat messages">
+    <p class="welcome">Ask a question below. I can explain the tracker and general skincare, but I cannot diagnose your skin or see your photos.</p>
+  </div>
+  <form id="chatForm">
+    <label for="question">Your question</label>
+    <textarea id="question" rows="3" maxlength="2000" required placeholder="Ask about acne, skincare, or Lesion Atlas…"></textarea>
+    <div class="actions"><button id="send" type="submit">Send question</button><button id="clear" type="button" class="secondary">Clear chat</button></div>
+  </form>
+  <p id="chatError" role="alert"></p>
+  <footer>General information, not a diagnosis. AI can make mistakes. Check treatment decisions with a pharmacist or clinician.
+    <details><summary>Reference reading</summary><p>These curated sources guide the assistant. They are not a live web search or verified citations for every answer.</p>
+      <ul><li><a href="https://www.aad.org/public/diseases/acne/skin-care/tips" target="_blank" rel="noopener noreferrer">AAD: acne skin care</a></li>
+      <li><a href="https://www.nhs.uk/conditions/acne/" target="_blank" rel="noopener noreferrer">NHS: acne</a></li>
+      <li><a href="https://www.nhs.uk/conditions/acne/treatment/" target="_blank" rel="noopener noreferrer">NHS: acne treatment</a></li></ul>
+    </details>
+  </footer>
   </section>
 
   <!-- ============ capture gate ============ -->

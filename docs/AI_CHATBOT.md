@@ -7,15 +7,17 @@ It cannot examine photos, access the tracking database, or count lesions.
 ## Architecture
 
 ```text
-Local upload page -> /chat/ -> local text-only relay -> Cloudflare Worker
+Home-page chat panel -> local text-only relay ------> Cloudflare Worker
                                                         |
 Cloudflare-hosted chat page -----------------------------+
                                                         |
                                                 Workers AI model
 ```
 
-The same HTML/CSS/JavaScript chat page runs locally and on Cloudflare. Local
-FastAPI serves it at `/chat/`; its `/api/chat` route forwards validated text to
+The assistant is embedded directly in the local home page alongside capture
+and spot counts; no navigation is needed. The shared chat script also serves
+the standalone Cloudflare page and optional local `/chat/` route. Local
+FastAPI's `/api/chat` route forwards validated text to
 the HTTPS Worker configured in `CHAT_SERVICE_URL`. On Cloudflare the browser
 calls the Worker directly on the same origin. Only `cloudflare/public` is the
 static deployment directory. The Python photo-ingestion server stays local.

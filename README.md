@@ -109,7 +109,7 @@ is built and connected. They do not report actual counts yet.
 
 ### Acne & skincare chatbot
 
-Choose **Open chat** on the upload page for questions about this project,
+Use the **Acne & skincare assistant** directly on the home page for questions about this project,
 photo setup, acne, skincare ingredients, and routines. The text-only assistant
 uses **Cloudflare Workers AI**. Photos and the tracking database stay local;
 only messages you type and recent chat replies go to Cloudflare. Chat history
