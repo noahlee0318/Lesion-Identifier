@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'none'; img-src blob: data:; object-src 'none'; base-uri 'self'; form-action 'none'">
+<title>Lesion Atlas — personal model workspace</title><link rel="stylesheet" href="./chat.css">
+<link rel="stylesheet" href="./personal.css"><script type="module" src="./personal.js"></script></head>
+<body><main>
+<a href="/">← Home</a><header><span class="eyebrow">PERSONAL MODEL WORKSPACE</span><h1>Your photos. Your dataset.</h1>
+<p>Prepare a model for your own skin. Scale calibration helps measure photos; reviewed labels teach the model.</p></header>
+<p class="privacy">Photos and labels stay in this browser on this device. Nothing here is sent to the chatbot or Cloudflare. Clearing browser data can erase your work. Export a local backup regularly; avoid cloud-synced folders. Profiles organize data; they are not password-protected accounts.</p>
+<p id="error" role="alert"></p>
+<section><h2>1 · Choose a local profile</h2><label for="profiles">Profile</label><select id="profiles"></select>
+<form id="newProfile"><label for="profileName">New profile name</label><input id="profileName" maxlength="60" required placeholder="A nickname is enough"><button>Create profile</button></form></section>
+<section><h2>2 · Add a photo</h2><form id="addPhoto">
+<label for="captureDate">Date taken</label><input id="captureDate" type="date" required>
+<label for="pose">View</label><select id="pose"><option value="frontal">Front</option><option value="left60">Left 60° (experimental)</option><option value="right60">Right 60° (experimental)</option></select>
+<label for="kind">Purpose</label><select id="kind"><option value="session">Training journal photo</option><option value="calibration">Practice calibration (excluded from training)</option></select>
+<label for="photoFile">JPEG or PNG photo</label><input id="photoFile" type="file" accept="image/jpeg,image/png" required><button>Save on this device</button></form>
+<p>Use consistent lighting, distance, and pose. Include a measured printed marker near the cheek's distance from the camera. This workspace measures scale; it does not verify face alignment or camera geometry.</p></section>
+<section><h2>3 · Measure and label</h2><label for="photos">Saved photo</label><select id="photos"></select>
+<div id="editor" hidden><p id="photoInfo"></p><label for="markerMm">Measured length of the marker edge (mm)</label><input id="markerMm" type="number" min="1" max="100" value="30">
+<button id="measure" type="button">Set scale: tap both ends of that edge</button><p id="scaleInfo" role="status"></p>
+<label for="diameter">Spot diameter (mm)</label><input id="diameter" type="number" min="0.5" max="20" step="0.5" value="2">
+<p>After setting scale, tap each visible acne spot to mark its center. Adjust diameter before each tap. Label all visible spots, including small ones; leave uncertain photos unreviewed. Do not label moles or the marker. This is annotation, not diagnosis.</p>
+<canvas id="preview" aria-label="Photo annotation canvas. Tap marker endpoints to measure scale, then tap spot centers."></canvas>
+<div class="actions"><button id="undo" type="button">Undo last spot</button><button id="save" type="button">Save draft</button><button id="review" type="button">All spots checked — save as reviewed</button></div>
+<p>A reviewed photo with no marks explicitly means no visible acne spots. Unreviewed photos never train the model. Changes stay drafts until saved.</p></div></section>
+<section><h2>4 · Prepare personal training</h2><label for="trainingPose">View to train</label><select id="trainingPose"><option value="frontal">Front</option><option value="left60">Left 60°</option><option value="right60">Right 60°</option></select>
+<p id="readiness" role="status"></p><p>The default split reserves the latest 14 calendar days for testing, 14 earlier days for validation, and 3-day gaps. Plan for at least 35 calendar days with reviewed photos in each block. Enough days does not guarantee enough examples or a good model.</p>
+<button id="export" type="button">Export this profile for local training / backup</button>
+<p>The export contains original photos and annotations. Keep it private and outside the code repository. Each profile currently supports up to 200 MB of original photos so its backup can be restored in this browser tool.</p>
+<label for="restoreFile">Restore a workspace backup on this device</label><input id="restoreFile" type="file" accept="application/json,.json"><button id="restore" type="button">Restore as a separate local profile</button>
+<h3>What happens after export?</h3><ol><li>Run the local Python trainer described in <code>docs/PERSONAL_ML.md</code>.</li><li>It learns a small experimental lesion-mask CNN using only this profile and view.</li><li>Run held-out evaluation. Review precision, recall, false positives, and missed spots before trusting results.</li></ol>
+<p><strong>Browser training and automatic counts are not connected yet.</strong> There is no pretrained acne model here. This page never marks a model validated merely because calibration or training completed. Tracking across days is still planned.</p></section>
+</main></body></html>

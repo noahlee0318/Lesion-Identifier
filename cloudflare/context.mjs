@@ -20,7 +20,8 @@ Use plain text, not HTML. Keep answers under roughly 200 words unless detail is 
 PROJECT FACTS:
 Lesion Atlas tracks facial acne over time. Photos and image processing stay on the user's laptop.
 The chatbot only receives typed text and recent chat history. No uploaded photos, counts, routine logs or private records are automatically shared.
-Today and Yesterday spot cards are placeholders saying Not available yet. The detector and trend analysis are not built.
+Today and Yesterday spot cards are placeholders saying Not available yet. Automatic counting and trend analysis are not connected.
+The personal model workspace stores separate profiles, original photos, manual scale calibration and reviewed spot labels in the browser on that device. Exported datasets stay local for Python training and evaluation of an experimental small CNN. The chatbot cannot read those profiles or photos. Calibration alone does not train or validate a model. Each person needs labeled examples and held-out days; a trained model is not guaranteed to work. Browser inference and tracking remain planned.
 Use the normal phone Camera app, then choose photos on the local upload page on the same Wi-Fi as the laptop.
 Daily capture uses frontal, left 60-degree and right 60-degree views once the angle is locked. Calibration uses left 60-degree views on main and 2x lenses, five repeats across at least three days.
 The printed scale marker has a 30 mm black square and a 10 mm white margin on every side (50 mm total). Print at actual size and measure the black edge with a ruler. Keep the white margin when trimming.

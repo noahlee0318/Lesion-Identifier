@@ -6,6 +6,21 @@ Full reasoning lives in `docs/build-plan.md`, `docs/runbook.md`, and
 
 ## What this is
 
+### Personalization scope (2026-10-04; supersedes single-subject scope below)
+
+The user now wants an AI-first project with a real, local ML personalization
+path. `docs/PERSONAL_ML.md` describes the implemented structure and limitations.
+The new personal workspace stores per-profile photos/labels in IndexedDB and
+exports private datasets for the local Python CNN trainer. Calibration measures
+scale only: never imply that it trains a model or guarantees generalization.
+Separate reviewed labels, train/validation/test dates, model training, and
+held-out evaluation. No public photo-processing API or automatic sharing with
+chat. Personal profiles are local organizational separation, not authentication.
+Keep the legacy research pipeline separate. No trained acne model is bundled;
+automatic daily counts, browser inference, and tracking remain unimplemented.
+This request authorizes building the annotation workspace; the earlier pause
+on beginning labeling-tool work is superseded for this personal workflow.
+
 A personal longitudinal acne-tracking system. Daily 3-pose facial capture ->
 detect acne lesions across 6 face regions -> hold lesion identity across days
 in a fixed anatomical coordinate frame -> visualize count and spatial

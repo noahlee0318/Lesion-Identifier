@@ -1,0 +1,5 @@
+section{padding:18px;border:1px solid var(--line);border-radius:12px;margin:16px 0;background:var(--panel)}
+h2{font-size:18px}h3{font-size:16px}section p,section li{font-size:13px;color:var(--dim)}
+select{width:100%;padding:12px;font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px}
+button{margin-top:10px}canvas{display:block;width:100%;height:auto;touch-action:manipulation;border:1px solid var(--line);cursor:crosshair}
+#error{color:#ffb7af}#readiness,#scaleInfo{color:var(--accent)}[hidden]{display:none!important}

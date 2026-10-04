@@ -5,11 +5,29 @@ detect acne lesions across 6 face regions → hold lesion identity across days
 in a fixed anatomical coordinate frame → visualise count and spatial
 distribution change over months.
 
-Single subject. Photo processing runs on one Windows 11 laptop with an NVIDIA GPU.
-Capture device is an iPhone 15. **No image ever leaves the machine.**
+The original research workflow uses one Windows laptop and an iPhone 15.
+The new personal-model workspace supports separate browser-local datasets.
+**Photos stay on the user's device.** Only typed chatbot text goes to Cloudflare.
 
 > **Status: phase 0 (spike). Tooling is built and tested against synthetic
 > fixtures. Waiting on real calibration photos.**
+
+## Personal ML structure
+
+The home page links to a **Personal model workspace**: local profiles, original
+photo storage in IndexedDB, manual marker-scale calibration, spot annotation,
+explicit review, and dataset export/restore. Calibration measures scale; it does
+not train a model or establish accuracy for a new person.
+
+`python -m src.personal_ml` provides real local CNN training, validation-threshold
+selection, held-out evaluation, and experimental per-photo prediction. It uses
+one person's reviewed dataset and one view at a time. This is a small baseline,
+not a pretrained or validated acne detector. No automatic daily counts, browser
+model inference, or lesion tracking are connected yet.
+
+See [Personal ML workflow and commands](docs/PERSONAL_ML.md). The legacy phase 0
+tools below remain available separately; their single-subject gates do not
+automatically validate someone else's personal model.
 
 ---
 
