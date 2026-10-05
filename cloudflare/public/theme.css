@@ -3,23 +3,41 @@
 @font-face{font-family:'Playfair Display';font-style:normal;font-weight:500;font-display:swap;src:url('./fonts/playfair-500.ttf') format('truetype')}
 @font-face{font-family:'Playfair Display';font-style:normal;font-weight:600;font-display:swap;src:url('./fonts/playfair-600.ttf') format('truetype')}
 @font-face{font-family:'Playfair Display';font-style:normal;font-weight:700;font-display:swap;src:url('./fonts/playfair-700.ttf') format('truetype')}
-:root{color-scheme:light;--bg:#fff;--panel:#fff;--panel2:#fff;--ink:#000;--dim:#000;--accent:#000;--line:#b8b8b8}
+:root{color-scheme:light;--bg:#fff;--panel:#fff;--panel2:#f2f8fc;--ink:#152733;--dim:#425969;--accent:#086f99;--line:#c4d8e3}
 *,*::before,*::after{border-radius:0!important;box-shadow:none!important}
-body{background:#fff;color:#000;font-family:'Playfair Display',Georgia,serif;font-size:17px;line-height:1.65}
-h1,h2,h3,h4,h5,h6,section h2{font-family:Georgia,'Times New Roman',serif;color:#000;letter-spacing:0;text-transform:none;line-height:1.25}
-h1{font-size:clamp(30px,6vw,40px);margin:12px 0}
-section h2{font-size:21px;margin:0 0 14px}h3{font-size:19px}
+body{background:#fff;color:var(--ink);font-family:'Playfair Display',Georgia,serif;font-size:17px;line-height:1.65}
+main{max-width:820px;padding:24px 20px 48px}
+h1,h2,h3,h4,h5,h6,section h2{font-family:Georgia,'Times New Roman',serif;color:#123e57;letter-spacing:0;text-transform:none;line-height:1.25}
+h1{font-size:clamp(30px,6vw,42px);margin:12px 0}
+section h2{font-size:22px;margin:0 0 16px}h3{font-size:19px}
+header{padding:30px;background:#eef7fc;border:1px solid var(--line);margin-bottom:24px}
+header p{max-width:550px;margin-bottom:0}
+.project-links{background:var(--accent);padding:12px 20px;margin-bottom:0;border:1px solid var(--accent)}
+.project-links a{color:#fff;text-decoration:none;font-weight:600}
+.project-links a:hover{text-decoration:underline}
+section,.chat-panel{padding:24px;margin:20px 0}
+.mode-guide,.demo-status{border:1px solid var(--line);background:#f5fafe}
 input,textarea,select,button,code{font-family:inherit}
-section p,section li,.privacy,.project-links,label,small,footer,#assistant .privacy,#assistant footer,#assistant small,#assistant label,#assistant .welcome{font-size:14px;color:#000}
-.eyebrow{color:#000;font-size:12px;letter-spacing:.14em}
-.spot-counts div,.modes button[aria-pressed=true],.message.user,#assistant .message.user{background:#fff;color:#000}
-.modes button[aria-pressed=true]{border:1px solid #000;border-bottom:4px solid #000}
-button,#assistant button,#send,#assistant #send,.print-target,#calibrationSheet .print-target{background:#fff;color:#000!important;border:1px solid #000}
-button:hover:not(:disabled),#assistant button:hover:not(:disabled),.print-target:hover{background:#f2f2f2}
-.print-target{padding:12px 16px;text-decoration:underline;text-underline-offset:3px}
-#error,#chatError,#assistant #chatError{color:#000;font-weight:600}
-.message,#assistant .message{border:1px solid var(--line)}
+input,textarea,select,#assistant input,#assistant textarea{background:#fff;color:var(--ink)}
+section p,section li,.privacy,.project-links,label,small,footer,#assistant .privacy,#assistant footer,#assistant small,#assistant label,#assistant .welcome{font-size:14px;color:var(--dim)}
+label,#assistant label{color:var(--ink);font-weight:600}
+.eyebrow{color:var(--accent);font-size:12px;letter-spacing:.16em}
+.spot-counts{gap:16px}
+.spot-counts div{background:var(--panel2);border:1px solid var(--line);padding:20px}
+.spot-counts dt,.spot-counts dd{color:var(--accent)}
+.spot-counts small{color:var(--dim)}
+button,#assistant button{background:#fff;color:var(--accent);border:1px solid var(--accent)}
+button:hover:not(:disabled),#assistant button:hover:not(:disabled){background:#e8f4fb}
+button[type=submit],#newProfile button,#send,#assistant #send,.modes button[aria-pressed=true],.print-target,#calibrationSheet .print-target{background:var(--accent);color:#fff!important;border:1px solid var(--accent);font-weight:600}
+button[type=submit]:hover:not(:disabled),#newProfile button:hover:not(:disabled),#assistant #send:hover:not(:disabled),.modes button[aria-pressed=true]:hover,.print-target:hover{background:#075777;border-color:#075777}
+.print-target{padding:12px 16px;text-decoration:none}
+#error,#chatError,#assistant #chatError{color:#a32727;font-weight:600}
+.message,#assistant .message{border:1px solid var(--line);background:#fff}
+.message.user,#assistant .message.user{background:var(--panel2);color:var(--ink)}
 .suggestions button,#assistant .suggestions button{font-size:14px}
-a{color:#000;text-underline-offset:3px}
-.chat-panel{max-width:none;margin:16px 0;padding:18px}
-:is(button,input,textarea,select,a,summary):focus-visible{outline:2px solid #000;outline-offset:3px}
+a{color:var(--accent);text-underline-offset:3px}
+.chat-panel{max-width:none}
+.actions{flex-wrap:wrap}
+:is(button,input,textarea,select,a,summary):focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.project-links a:focus-visible{outline-color:#fff}
+@media(max-width:540px){main{padding:16px 14px 32px}header{padding:24px 20px}section,.chat-panel{padding:18px}.spot-counts{gap:10px}.spot-counts div{padding:14px}}
