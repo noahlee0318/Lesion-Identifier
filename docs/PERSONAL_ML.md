@@ -34,7 +34,7 @@ unseen days. Even passing the provisional gate is not clinical validation.
    individual calibrated photo from the same profile and view. These are not
    trusted spot totals and are not added to the home-page count cards.
 
-The workspace blocks connection requests with its Content Security Policy.
+The workspace allows same-origin connections for the integrated text-only chatbot. Photo and annotation code does not make network requests.
 Use public HTTPS or localhost; plain HTTP LAN access is unsupported for these
 browser cryptography tools.
 

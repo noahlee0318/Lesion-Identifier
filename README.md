@@ -22,6 +22,12 @@ The new personal-model workspace supports separate browser-local datasets.
 
 ## Personal ML structure
 
+The public homepage uses **Daily session** and **Calibration** tabs, keeps
+local profiles and GitHub/ML workflow links at the top, and includes chat on
+the same page. Each tab filters its own saved photos; changing tabs does not
+reclassify existing photos. Training/backup controls are in an expandable panel.
+The existing browser database is preserved, so saved profiles remain available.
+
 The home page links to a **Personal model workspace**: local profiles, original
 photo storage in IndexedDB, manual marker-scale calibration, spot annotation,
 explicit review, and dataset export/restore. Calibration measures scale; it does

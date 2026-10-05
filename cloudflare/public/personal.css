@@ -1,5 +1,15 @@
+:root{--panel2:#232a35}
 section{padding:18px;border:1px solid var(--line);border-radius:12px;margin:16px 0;background:var(--panel)}
 h2{font-size:18px}h3{font-size:16px}section p,section li{font-size:13px;color:var(--dim)}
 select{width:100%;padding:12px;font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px}
 button{margin-top:10px}canvas{display:block;width:100%;height:auto;touch-action:manipulation;border:1px solid var(--line);cursor:crosshair}
 #error{color:#ffb7af}#readiness,#scaleInfo{color:var(--accent)}[hidden]{display:none!important}
+.modes{display:flex;gap:8px;margin:16px 0}.modes button{flex:1;margin:0;font-weight:600}
+.modes button[aria-pressed=true]{background:#232a35;border-color:var(--accent);color:var(--ink)}
+.mode-guide{border-left:3px solid var(--accent)}
+.spot-counts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0}
+.spot-counts div{padding:12px;background:#232a35;border:1px solid var(--line);border-radius:9px}
+.spot-counts dt{font-size:14px;font-weight:600}.spot-counts dd{margin:8px 0 0;font-size:30px;font-weight:700}.spot-counts small{font-size:12px;font-weight:400}
+section h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
+.chat-panel{max-width:704px;margin:0 auto 24px;padding:18px}summary{color:var(--accent)}
+@media(max-width:740px){.chat-panel{margin:0 18px 24px}}

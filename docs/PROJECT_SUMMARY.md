@@ -131,8 +131,8 @@ replace or re-encode the stored originals. Profiles separate records for
 organization, but are not authenticated accounts: another person using the same
 browser can access that browser's profiles.
 
-The workspace has no photo-upload endpoint. Its Content Security Policy also
-blocks connection requests. Photo bytes, labels, profile names and calibration
+The workspace has no photo-upload endpoint. Its Content Security Policy permits
+only same-origin connections for the integrated text-only chatbot. Photo bytes, labels, profile names and calibration
 data are not sent to the chatbot or Cloudflare by this workspace.
 
 ### Calibration
