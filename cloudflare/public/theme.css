@@ -1,0 +1,25 @@
+/* Public-site visual theme. Fonts are served locally, without third-party requests. */
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:400;font-display:swap;src:url('./fonts/playfair-400.ttf') format('truetype')}
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:500;font-display:swap;src:url('./fonts/playfair-500.ttf') format('truetype')}
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:600;font-display:swap;src:url('./fonts/playfair-600.ttf') format('truetype')}
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:700;font-display:swap;src:url('./fonts/playfair-700.ttf') format('truetype')}
+:root{color-scheme:light;--bg:#fff;--panel:#fff;--panel2:#fff;--ink:#000;--dim:#000;--accent:#000;--line:#b8b8b8}
+*,*::before,*::after{border-radius:0!important;box-shadow:none!important}
+body{background:#fff;color:#000;font-family:'Playfair Display',Georgia,serif;font-size:17px;line-height:1.65}
+h1,h2,h3,h4,h5,h6,section h2{font-family:Georgia,'Times New Roman',serif;color:#000;letter-spacing:0;text-transform:none;line-height:1.25}
+h1{font-size:clamp(30px,6vw,40px);margin:12px 0}
+section h2{font-size:21px;margin:0 0 14px}h3{font-size:19px}
+input,textarea,select,button,code{font-family:inherit}
+section p,section li,.privacy,.project-links,label,small,footer,#assistant .privacy,#assistant footer,#assistant small,#assistant label,#assistant .welcome{font-size:14px;color:#000}
+.eyebrow{color:#000;font-size:12px;letter-spacing:.14em}
+.spot-counts div,.modes button[aria-pressed=true],.message.user,#assistant .message.user{background:#fff;color:#000}
+.modes button[aria-pressed=true]{border:1px solid #000;border-bottom:4px solid #000}
+button,#assistant button,#send,#assistant #send,.print-target,#calibrationSheet .print-target{background:#fff;color:#000!important;border:1px solid #000}
+button:hover:not(:disabled),#assistant button:hover:not(:disabled),.print-target:hover{background:#f2f2f2}
+.print-target{padding:12px 16px;text-decoration:underline;text-underline-offset:3px}
+#error,#chatError,#assistant #chatError{color:#000;font-weight:600}
+.message,#assistant .message{border:1px solid var(--line)}
+.suggestions button,#assistant .suggestions button{font-size:14px}
+a{color:#000;text-underline-offset:3px}
+.chat-panel{max-width:none;margin:16px 0;padding:18px}
+:is(button,input,textarea,select,a,summary):focus-visible{outline:2px solid #000;outline-offset:3px}
