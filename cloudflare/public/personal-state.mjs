@@ -1,3 +1,14 @@
+export function calibrationProgress(images, profileId, today) {
+  const dates = [...new Set(images.filter(r => {
+    if (!profileId || r.profile_id !== profileId || r.kind !== 'calibration' ||
+        !Number.isFinite(r.px_per_mm) || r.px_per_mm <= 0 ||
+        typeof r.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(r.date) || r.date > today) return false;
+    const timestamp = Date.parse(r.date + 'T00:00:00Z');
+    return Number.isFinite(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === r.date;
+  }).map(r => r.date))].sort();
+  return {dates, completed: dates.length, required: 3, unlocked: dates.length >= 3};
+}
+
 export function readiness(images, pose = 'frontal') {
   const eligible = images.filter(r => r.kind === 'session' && r.pose === pose && r.reviewed && Number.isFinite(r.px_per_mm) && r.px_per_mm > 0);
   const days = [...new Set(eligible.map(r => r.date))].sort();

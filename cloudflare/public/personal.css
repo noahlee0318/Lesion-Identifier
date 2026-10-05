@@ -6,6 +6,7 @@ button{margin-top:10px}canvas{display:block;width:100%;height:auto;touch-action:
 #error{color:#ffb7af}#readiness,#scaleInfo{color:var(--accent)}[hidden]{display:none!important}
 .modes{display:flex;gap:8px;margin:16px 0}.modes button{flex:1;margin:0;font-weight:600}
 .modes button[aria-pressed=true]{background:#232a35;border-color:var(--accent);color:var(--ink)}
+.modes button:disabled{cursor:not-allowed;border-style:dashed;opacity:.55}
 .mode-guide{border-left:3px solid var(--accent)}
 .spot-counts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0}
 .spot-counts div{padding:12px;background:#232a35;border:1px solid var(--line);border-radius:9px}
