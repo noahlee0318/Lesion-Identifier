@@ -8,6 +8,8 @@ button{margin-top:10px}canvas{display:block;width:100%;height:auto;touch-action:
 .modes button[aria-pressed=true]{background:#232a35;border-color:var(--accent);color:var(--ink)}
 .modes button:disabled{cursor:not-allowed;border-style:dashed;opacity:.55}
 .mode-guide{border-left:3px solid var(--accent)}
+.print-target{display:inline-block;padding:12px 16px;border-radius:9px;background:var(--accent);color:#06101c!important;font-weight:700;text-decoration:none}
+#calibrationSheet .actions{align-items:center}
 .spot-counts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0}
 .spot-counts div{padding:12px;background:#232a35;border:1px solid var(--line);border-radius:9px}
 .spot-counts dt{font-size:14px;font-weight:600}.spot-counts dd{margin:8px 0 0;font-size:30px;font-weight:700}.spot-counts small{font-size:12px;font-weight:400}

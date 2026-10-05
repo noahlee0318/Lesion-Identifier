@@ -36,6 +36,7 @@ on('photos','change',openPhoto);
 function setModeUI(kind){
   $('kind').value=kind;
   const daily=kind==='session';
+  $('calibrationSheet').hidden=daily;
   $('mSession').setAttribute('aria-pressed',String(daily));$('mCalib').setAttribute('aria-pressed',String(!daily));
   $('modeHeading').textContent=daily?'Daily session':'Practice calibration';
   $('modeHelp').textContent=daily?'Save regular photos here, then measure their scale and review spot labels when ready. Each photo needs its own scale measurement.':'Practice lighting, pose, and marker measurement here. Calibration photos are kept separate and never train the model. Calibration does not automatically validate a model.';

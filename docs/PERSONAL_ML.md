@@ -49,6 +49,12 @@ not a long-term photo archive; keep local original-photo backups too.
 
 ## User steps
 
+The Calibration tab has a prominent **Open printable PDF / Download PDF** card
+above the photo controls. It serves `cloudflare/public/calibration-target.pdf`,
+an unchanged copy of the generated `docs/fiducial/calibration_target.pdf`.
+Print at actual size, verify the 30 mm outer black edge with a ruler, and retain
+the surrounding 10 mm white margin. The How to use guide also links to it.
+
 Daily session is available immediately. The guide recommends three distinct,
 non-future dates of saved scale-calibrated practice photos and shows progress,
 but does not block daily photos. Skipping calibration may reduce measurement
