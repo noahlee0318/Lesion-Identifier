@@ -6,7 +6,7 @@ export function calibrationProgress(images, profileId, today) {
     const timestamp = Date.parse(r.date + 'T00:00:00Z');
     return Number.isFinite(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === r.date;
   }).map(r => r.date))].sort();
-  return {dates, completed: dates.length, required: 3, unlocked: dates.length >= 3};
+  return {dates, completed: dates.length, required: 3, complete: dates.length >= 3};
 }
 
 export function readiness(images, pose = 'frontal') {

@@ -6,7 +6,7 @@
 <body><main id="workspace">
 <nav class="project-links" aria-label="Project links"><a href="https://github.com/noahlee0318/Lesion-Identifier" target="_blank" rel="noopener noreferrer">GitHub</a><a href="https://github.com/noahlee0318/Lesion-Identifier/blob/main/docs/PERSONAL_ML.md" target="_blank" rel="noopener noreferrer">ML workflow</a></nav><header><span class="eyebrow">LESION ATLAS</span><h1>Daily photos & calibration</h1>
 <p>Keep your daily photos together. Use calibration to practice your setup.</p></header>
-<section class="mode-guide"><h2>How to use</h2><ol><li>Create or select your local profile.</li><li>On <strong>3 different dates</strong>, add a photo in Calibration. Measure the printed marker edge and tap <strong>Save draft</strong> to record the scale. Multiple photos on one date count as one day.</li><li>Daily session unlocks once all three days are saved. Add regular photos there and label spots when ready.</li></ol><p id="calibrationProgress" role="status">Calibration: 0 / 3 days. Daily session is locked.</p><p>This unlocks photo journaling, not automatic acne detection. Calibration does not train or validate your model.</p></section>
+<section class="mode-guide"><h2>How to use</h2><ol><li>Create or select your local profile.</li><li>For a more consistent setup, practice on <strong>3 different dates</strong>: add a photo in Calibration. Measure the printed marker edge and tap <strong>Save draft</strong> to record the scale. Multiple photos on one date count as one day.</li><li>You can start Daily session anytime. Add regular photos and label spots when ready.</li></ol><p id="calibrationProgress" role="status">Calibration: 0 / 3 recommended days. Daily session is available now.</p><p><strong>Skipping calibration can make measurements and comparisons less accurate.</strong> Calibration does not train or validate your model; automatic counts are not available yet.</p></section>
 <section aria-labelledby="spotCountsHeading"><h2 id="spotCountsHeading">Acne spots detected</h2><dl class="spot-counts"><div><dt>Today</dt><dd>—<small>Not available yet</small></dd></div><div><dt>Yesterday</dt><dd>—<small>Not available yet</small></dd></div></dl><p>Automatic counting is not connected yet. Photos and manual labels prepare your personal dataset.</p></section>
 <p class="privacy">Photos and labels stay in this browser on this device. Your photos and labels are not sent to the chatbot or Cloudflare. Clearing browser data can erase your work. Export a local backup regularly; avoid cloud-synced folders. Profiles organize data; they are not password-protected accounts.</p>
 <p id="error" role="alert"></p>
@@ -36,12 +36,12 @@
     </details>
   </footer>
 </section>
-<div class="modes" aria-label="Photo mode"><button id="mSession" type="button" aria-pressed="false" aria-describedby="calibrationProgress" disabled>Daily session</button><button id="mCalib" type="button" aria-pressed="true">Calibration</button></div>
+<div class="modes" aria-label="Photo mode"><button id="mSession" type="button" aria-pressed="true" aria-describedby="calibrationProgress">Daily session</button><button id="mCalib" type="button" aria-pressed="false">Calibration</button></div>
 <section class="mode-guide"><h2 id="modeHeading">Daily session</h2><p id="modeHelp">Save regular photos here, then measure their scale and review spot labels when ready. Each photo needs its own scale measurement.</p><p id="modeCount" role="status"></p></section>
 <section><h2 id="addHeading">Add a daily photo</h2><form id="addPhoto">
 <label for="captureDate">Date taken</label><input id="captureDate" type="date" required>
 <label for="pose">View</label><select id="pose"><option value="frontal">Front</option><option value="left60">Left 60° (experimental)</option><option value="right60">Right 60° (experimental)</option></select>
-<input id="kind" type="hidden" value="calibration">
+<input id="kind" type="hidden" value="session">
 <label for="photoFile">JPEG or PNG photo</label><input id="photoFile" type="file" accept="image/jpeg,image/png" required><button>Save on this device</button></form>
 <p>Use consistent lighting, distance, and pose. Include a measured printed marker near the cheek's distance from the camera. This workspace measures scale; it does not verify face alignment or camera geometry.</p></section>
 <section><h2 id="savedHeading">Daily photos · measure & label</h2><label for="photos">Saved photo</label><select id="photos"></select>

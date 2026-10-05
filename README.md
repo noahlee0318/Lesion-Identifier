@@ -27,10 +27,10 @@ local profiles and GitHub/ML workflow links at the top, and includes chat on
 the same page. Each tab filters its own saved photos; changing tabs does not
 reclassify existing photos. Training/backup controls are in an expandable panel.
 The existing browser database is preserved, so saved profiles remain available.
-Daily session unlocks after three distinct dates of saved, scale-calibrated
-practice photos in that profile. A top-of-page guide explains the steps and
-shows progress. The AI assistant sits below the profile box, above the tabs.
-This is an onboarding gate, not model training or validation.
+Daily session is available immediately. The guide recommends three distinct
+dates of calibration practice and warns that skipping it can reduce measurement
+and comparison accuracy. The AI assistant sits below the profile box, above
+the tabs. Per-image scale and reviewed labels are still required for training.
 
 The home page links to a **Personal model workspace**: local profiles, original
 photo storage in IndexedDB, manual marker-scale calibration, spot annotation,

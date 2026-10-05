@@ -49,16 +49,12 @@ not a long-term photo archive; keep local original-photo backups too.
 
 ## User steps
 
-Daily session is locked per local profile until saved calibration photos have
-positive scale measurements on three distinct, non-future capture dates.
-Saving a measured calibration photo as a draft is enough; spot-label review
-is a separate training requirement. Repeated photos on one date count once.
-The page starts on Calibration while locked, displays progress at the top,
-and checks the gate again when saving a daily photo. Existing records are not
-deleted or relabeled. Dates are user-entered, so this is an onboarding workflow,
-not tamper-proof verification of elapsed time or a scientific model-quality gate.
-It does not replace the legacy phase 0 registration/angle checks or the roughly
-35-day split needed for the experimental trainer.
+Daily session is available immediately. The guide recommends three distinct,
+non-future dates of saved scale-calibrated practice photos and shows progress,
+but does not block daily photos. Skipping calibration may reduce measurement
+and comparison accuracy. Dates are user-entered; progress is not a scientific
+quality assessment. Per-image scale and reviewed labels remain required for
+ML training, along with the roughly 35-day split. Existing records are preserved.
 
 Open **Personal model workspace** from the home page. Create a profile, add a
 photo, measure scale, label spots, and save as reviewed only after checking all
