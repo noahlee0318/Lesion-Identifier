@@ -1,7 +1,7 @@
 # Lesion Atlas
 
-[Live Demo](https://lesion-atlas-chat.noahlee0318.workers.dev) ·
-[Personal Workspace](https://lesion-atlas-chat.noahlee0318.workers.dev/personal.html) ·
+[Live Demo](https://lesiontracker.noahlee.org) ·
+[Personal Workspace](https://lesiontracker.noahlee.org/personal.html) ·
 [GitHub](https://github.com/noahlee0318/Lesion-Identifier)
 
 Read the [project summary and how everything works](docs/PROJECT_SUMMARY.md)
@@ -151,7 +151,7 @@ uses **Cloudflare Workers AI**. Photos and the tracking database stay local;
 only messages you type and recent chat replies go to Cloudflare. Chat history
 stays in page memory and clears on reload. It cannot see your photos or counts.
 
-The chatbot is deployed at [the public chat demo](https://lesion-atlas-chat.noahlee0318.workers.dev),
+The chatbot is deployed at [the public chat demo](https://lesiontracker.noahlee.org),
 with no password or access code. The local home page uses the same backend
 when `CHAT_SERVICE_URL` is configured. Photo capture and processing remain local.
 See [AI implementation and setup](docs/AI_CHATBOT.md) for deployment, local

@@ -1,6 +1,8 @@
 {
   "name": "lesion-atlas-chat",
   "main": "worker.mjs",
+  "workers_dev": true,
+  "routes": [{ "pattern": "lesiontracker.noahlee.org", "custom_domain": true }],
   "compatibility_date": "2026-10-03",
   "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
   "ai": { "binding": "AI" },

@@ -6,7 +6,11 @@ It cannot examine photos, access the tracking database, or count lesions.
 
 ## Deployment status
 
-Live service: https://lesion-atlas-chat.noahlee0318.workers.dev
+Live service: https://lesiontracker.noahlee.org
+
+The custom subdomain uses the existing noahlee.org domain; no second domain purchase is needed. Cloudflare manages its DNS and HTTPS through the custom-domain route in `cloudflare/wrangler.jsonc`. The original https://lesion-atlas-chat.noahlee0318.workers.dev address remains available.
+
+Browser storage is separate for each address. To move existing photos and profiles, export a private backup from the old address and restore it at the new address. Switching domains does not migrate or delete the old browser data.
 
 The initial deployment succeeded with version
 `fb41da58-f44f-464d-8f5a-cd449ebdcc3f`. Four generic live requests returned
